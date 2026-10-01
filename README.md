@@ -1,41 +1,30 @@
-# FitCore — demonstração de gestão de ginásios
+# FitCore — login e ginásios ligados ao Supabase
 
-## O que foi preparado
-O código original foi colocado em src/App.jsx e acompanhado dos ficheiros necessários para executar e compilar uma aplicação React com Vite. A compilação foi verificada com sucesso.
+Esta versão tem um painel inicial diferente da demonstração anterior. Implementa login por email e palavra-passe, saída da sessão, escolha entre ginásios autorizados, consulta dos membros e edição do nome/logótipo pelo gestor. O código da demonstração anterior foi preservado no ZIP original.
 
-## Publicar através do GitHub
-1. Extraia fitcore-projeto.zip.
-2. No repositório Claude, escolha Adicionar arquivo > Carregar arquivos.
-3. Carregue o conteúdo extraído na raiz: package.json, index.html, vite.config.js, README.md e a pasta src. Não carregue o ZIP como ficheiro nem coloque tudo dentro de outra pasta.
-4. Guarde as alterações com Commit changes. O ficheiro antigo Projecto Ginásio já não é utilizado e pode ser eliminado.
-5. No painel Cloudflare, abra Workers & Pages > Create application > Pages > Import from an existing Git repository.
-6. Ligue o GitHub e selecione o repositório Claude.
-7. Selecione a branch que contém os ficheiros (normalmente main; o navegador traduzido pode mostrar principal).
-8. Comando de compilação: npm run build
-9. Diretório de saída: dist
-10. Diretório raiz: deixe vazio. Use Node.js 22 ou superior.
-11. Escolha Save and Deploy. O endereço público será apresentado no painel.
+Os dados vêm apenas de public.ginasios e public.membros_ginasio. As permissões são aplicadas pelo Supabase. Mensalidades, presenças, treinos, inscrições, convites, recuperação de palavra-passe e criação de ginásios pelo site ainda não foram implementados. Não é o SaaS completo.
 
-Documentação: https://developers.cloudflare.com/pages/framework-guides/deploy-a-vite3-project/
+## Carregar no GitHub
+Extraia fitcore-login-projeto.zip. Carregue o conteúdo na raiz do repositório Claude, preservando a pasta src. Substitua package.json, index.html, vite.config.js e os ficheiros src/App.jsx, src/main.jsx e src/styles.css; acrescente src/supabase.js.
+Não carregue o ZIP como ficheiro nem arraste os ficheiros de src individualmente para a raiz.
 
-## Publicar sem configurar uma compilação
-O ZIP fitcore-site.zip contém a aplicação compilada. Pode usá-lo num novo projeto Cloudflare Pages com Direct Upload, ou extraí-lo e carregar o conteúdo da pasta. A raiz publicada deve conter index.html e assets/.
-Os projetos Direct Upload não podem ser convertidos posteriormente para integração Git; para atualizações automáticas pelo GitHub, use a opção anterior desde o início.
+## Cloudflare Worker existente
+Comando de compilação: npm run build
+Comando de implantação: npx wrangler deploy --assets ./dist
+Diretório raiz: /
+Use Node.js 22 ou superior. Mantenha workers.dev habilitado.
+Se a integração já gerar a configuração de assets corretamente, o comando de implantação existente pode ser mantido.
 
-## Executar localmente
-Instale Node.js 22 ou superior. Na pasta do projeto:
-npm install
-npm run dev
+## Supabase
+Authentication > URL Configuration:
+Site URL: https://claude.joaomutange.workers.dev
+Não há recuperação de palavra-passe nem convites tratados nesta versão.
+A conta criada por Authentication > Users deve ter palavra-passe definida e, se exigido pelo projeto, email confirmado.
+A atribuição de funções continua a ser feita no painel/servidor administrativo.
 
-## Limitações da aplicação atual
-Esta é uma demonstração, não um SaaS pronto para clientes reais.
-- As contas e palavras-passe de demonstração estão no código enviado ao navegador.
-- Não existe servidor de autenticação nem controlo seguro de permissões.
-- Os dados ficam apenas na memória; alterações e novos registos desaparecem ao atualizar a página.
-- Não existe base de dados partilhada, isolamento seguro entre ginásios nem processamento real de pagamentos.
-Não introduza dados reais de clientes nesta versão. Para produção, implemente autenticação no servidor, base de dados, permissões por ginásio e integração real de pagamentos, se necessária.
+A URL e a chave publishable fornecidas estão em src/supabase.js. São valores públicos; não há chaves secretas neste projeto.
 
-## Contas de demonstração
-Gestor: admin@fitcore.ao / admin123
-Trainer: trainer@fitcore.ao / trainer123
-Aluno: ana@fitcore.ao / ana123
+## Validação realizada
+Compilação de produção concluída. O serviço de autenticação respondeu com sucesso à chave pública. Consultas sem login às duas tabelas foram recusadas por falta de permissões.
+Não foi feito login com a conta do gestor, nem testado o isolamento entre duas contas autenticadas: não temos palavras-passe nem uma segunda conta de teste.
+Após publicar, entrar com a conta real, confirmar Elite Fitness e os membros, testar uma alteração do nome e confirmar a persistência ao atualizar. Depois testar duas contas de ginásios diferentes e uma conta sem vínculo.
