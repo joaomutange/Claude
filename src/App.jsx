@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import Dashboard from './Dashboard';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -75,7 +76,14 @@ export default function App() {
     setAccessMode('login');
   }} />;
 
-  return <main>
+  if (!loading && user && gym && membership) return <Dashboard
+    key={`${user.id}:${gym.id}`}
+    gym={gym} gyms={gyms} membership={membership} user={user} authError={error}
+    onSelectGym={setGymId} onLogout={logout}
+    onSaved={updated => setGyms(list => list.map(g => g.id === updated.id ? updated : g))}
+  />;
+
+  return <main className="auth-page">
     <header><span className="brand">🏋️ FitCore</span>{user && <button disabled={busy} onClick={logout}>Sair</button>}</header>
     {error && <p className="error" role="alert">{error}</p>}
     {linkError && <p className="error" role="alert">{linkError}</p>}
@@ -135,7 +143,7 @@ function AccessForm({ mode, user, loading, linkError, onBack }) {
       else setError(request ? 'Não foi possível enviar o email. Aguarde antes de repetir; se persistir, verifique a configuração de envio do Supabase.' : 'Não foi possível alterar a palavra-passe. Peça um novo link ou tente novamente.');
     } finally { setBusy(false); }
   }
-  return <main><header><span className="brand">🏋️ FitCore</span></header><section className="card login">
+  return <main className="auth-page"><header><span className="brand">🏋️ FitCore</span></header><section className="card login">
     <h1>{request ? 'Recuperar acesso' : 'Definir palavra-passe'}</h1>
     {linkError && !done && <p className="error" role="alert">{linkError}</p>}
     {error && <p className="error" role="alert">{error}</p>}
