@@ -110,14 +110,23 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
       <div className="gym-switch"><small>O SEU ESPAÇO</small><select aria-label="Selecionar ginásio" value={gym.id} onChange={e=>onSelectGym(e.target.value)}>{gyms.map(g=><option key={g.id} value={g.id}>{g.nome}</option>)}</select></div>
       <small className="nav-label">GESTÃO DO GINÁSIO</small><nav>{menu.map(([p,label])=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)} aria-current={page===p?'page':undefined}><Icon name={p}/>{label}{page===p&&<span className="nav-dot"/>}</button>)}</nav>
       <div className="sidebar-note"><span className="live-dot"/><span>O seu espaço. A sua equipa.<br/><small>Gestão com visão de futuro.</small></span></div>
-      <div className="account"><span className="avatar">{initial(membership?.nome)}</span><div><strong>{membership?.nome||'A sua conta'}</strong><small>{text(role)}</small></div><button onClick={onLogout} aria-label="Sair da conta"<button
-  type="button"
-  onClick={onLogout}
-  aria-label="Sair da conta"
->
-  Terminar sessão
-</button>
-    </aside>
+    <div className="account">
+  <span className="avatar">{initial(membership?.nome)}</span>
+
+  <div>
+    <strong>{membership?.nome || 'A sua conta'}</strong>
+    <small>{text(role)}</small>
+  </div>
+
+  <button
+    type="button"
+    onClick={onLogout}
+    aria-label="Sair da conta"
+  >
+    Terminar sessão
+  </button>
+</div>
+</aside>
     <div className="workspace-body"><header className="topbar"><span>O seu espaço <b>/</b> {menu.find(x=>x[0]===page)?.[1]}</span><div><span className="topbar-status"><i/> {gym.nome}</span><span className="avatar small">{initial(membership?.nome)}</span><button className="icon-button mobile-logout" onClick={onLogout} aria-label="Sair da conta"><Icon name="exit" size={18}/></button></div></header>
       <div className="content"><div className="page-heading"><div><div className="eyebrow">FITCORE / {text(role).toUpperCase()}</div><h1>{headings[page][0]}</h1><p>{headings[page][1]}</p></div><button className="icon-button" onClick={load} disabled={loading} aria-label="Atualizar dados"><Icon name="refresh"/></button></div>
       {authError&&<div className="alert" role="alert">{authError}</div>}
