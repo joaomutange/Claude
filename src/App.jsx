@@ -308,7 +308,7 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
       .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
     const { data, error: err } = await supabase
       .from("ginasios")
-      .insert({ nome: form.nome?.trim(), slug, morada: form.morada?.trim()||null, telefone: form.telefone?.trim()||null })
+      .insert({ nome: form.nome?.trim(), slug })
       .select("id,nome")
       .single();
     if (err) { setError("Erro ao criar ginásio: " + err.message); setBusy(false); return; }
