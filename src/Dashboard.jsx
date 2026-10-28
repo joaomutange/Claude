@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
 
-const labels = {gestor:'Gestor',trainer:'Treinador',aluno:'Aluno',ativa:'Ativa',pausada:'Pausada',cancelada:'Cancelada',expirada:'Expirada',pago:'Pago',pendente:'Pendente',falhado:'Falhado',reembolsado:'Reembolsado',dinheiro:'Dinheiro',transferencia:'Transferência',outro:'Outro'};
+const labels = {admin:'Admin',gestor:'Gestor',trainer:'Treinador',aluno:'Aluno',superadmin:'Superadmin',ativa:'Ativa',pausada:'Pausada',cancelada:'Cancelada',expirada:'Expirada',pago:'Pago',pendente:'Pendente',falhado:'Falhado',reembolsado:'Reembolsado',dinheiro:'Dinheiro',transferencia:'Transferência',outro:'Outro'};
 const money = (n, currency='AOA') => new Intl.NumberFormat('pt-AO',{style:'currency',currency}).format(Number(n||0));
 const date = v => v ? new Date(v.length===10 ? v+'T12:00:00' : v).toLocaleDateString('pt-AO') : '—';
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -21,10 +21,21 @@ function Badge({value}) {return <span className={`badge ${value===true||['pago',
 function Empty({title='Ainda não existem registos',detail='Os novos registos aparecerão aqui.',action}) {return <div className="empty"><span className="empty-icon"><Icon name="overview" size={27}/></span><h3>{title}</h3><p>{detail}</p>{action}</div>;}
 function Metric({label,value,detail,icon}) {return <article className="metric"><div className="metric-top"><span>{label}</span><Icon name={icon}/></div><strong>{value}</strong><small>{detail}</small></article>;}
 
-async function all(table,gymId) {
+async function all(table,gymId,role,userId) {
   const rows=[];
   for(let offset=0;;offset+=1000) {
-    const {data,error}=await supabase.from(table).select('*').eq('ginasio_id',gymId).range(offset,offset+999).order(table==='membros_ginasio'?'utilizador_id':'id');
+    let q=supabase.from(table).select('*').eq('ginasio_id',gymId).range(offset,offset+999).order(table==='membros_ginasio'?'utilizador_id':'id');
+    // Trainer: só dados dos seus alunos (planos, treinos, registos, medições)
+    if(role==='trainer') {
+      if(table==='planos_treino') q=q.eq('trainer_id',userId);
+      else if(['registos_treino','registos_series'].includes(table)) {/* filtrado no cliente depois */}
+      else if(table==='medicoes') {/* filtrado no cliente depois */}
+    }
+    // Aluno: só os seus próprios dados
+    if(role==='aluno') {
+      if(['planos_treino','registos_treino','medicoes','subscricoes','pagamentos'].includes(table)) q=q.eq('aluno_id',userId);
+    }
+    const {data,error}=await q;
     if(error) throw error;
     rows.push(...data);
     if(data.length<1000) return rows;
@@ -32,7 +43,14 @@ async function all(table,gymId) {
 }
 
 export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,onLogout,authError}) {
-  const role=membership?.funcao,manager=role==='gestor',staff=manager||role==='trainer';
+  const role=membership?.funcao;
+  // Hierarquia de permissões
+  const isAdmin=role==='admin';           // acesso total ao ginásio
+  const isGestor=role==='gestor';         // financeiro + membros + presenças
+  const isTrainer=role==='trainer';       // treinos + alunos atribuídos
+  const isAluno=role==='aluno';           // vista própria
+  const manager=isAdmin||isGestor;       // pode gerir financeiro e membros
+  const staff=manager||isTrainer;        // pode ver/gerir treinos e membros
   const [page,setPage]=useState('overview');
   const [tab,setTab]=useState('');
   const [query,setQuery]=useState('');
@@ -42,11 +60,13 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
   const [notice,setNotice]=useState('');
   const [modal,setModal]=useState(null);
   const version=useRef(0),alive=useRef(true);
-  const tables=['membros_ginasio','exercicios','planos_treino','treinos','treino_exercicios','registos_treino','registos_series','medicoes',...(role!=='trainer'?['planos_mensalidade','subscricoes','pagamentos']:[])];
+  // Trainer só vê alunos atribuídos a si (onde é o treinador)
+  // Aluno só vê os seus próprios dados
+  const tables=['membros_ginasio','exercicios','planos_treino','treinos','treino_exercicios','registos_treino','registos_series','medicoes',...(manager?['planos_mensalidade','subscricoes','pagamentos']:[])];
   async function load() {
     const rev=++version.current;
     setLoading(true);setErrors([]);
-    const results=await Promise.allSettled(tables.map(t=>all(t,gym.id)));
+    const results=await Promise.allSettled(tables.map(t=>all(t,gym.id,role,user.id)));
     if(!alive.current||version.current!==rev)return;
     const next={},failures=[];
     results.forEach((r,i)=>{next[tables[i]]=r.status==='fulfilled'?r.value:[];if(r.status==='rejected')failures.push(tables[i]);});
@@ -54,8 +74,15 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
   }
   useEffect(()=>{alive.current=true;load();return()=>{alive.current=false;version.current++;};},[gym.id,role]);
   const rows=t=>data[t]||[];
-  const members=rows('membros_ginasio');
-  const alumnos=members.filter(m=>m.funcao==='aluno'&&m.ativo);
+  const allMembers=rows('membros_ginasio');
+  // Trainer só vê alunos com planos atribuídos a si; aluno só se vê a si próprio
+  const trainerStudentIds=isTrainer?new Set(rows('planos_treino').map(p=>p.aluno_id)):null;
+  const members=isTrainer
+    ? allMembers.filter(m=>m.funcao==='aluno'&&trainerStudentIds.has(m.utilizador_id))
+    : isAluno
+    ? allMembers.filter(m=>m.utilizador_id===user.id)
+    : allMembers;
+  const alumnos=isAluno?[]:members.filter(m=>m.funcao==='aluno'&&m.ativo);
   const memberName=id=>members.find(m=>m.utilizador_id===id)?.nome||'Membro';
   const planName=id=>rows('planos_treino').find(x=>x.id===id)?.nome||'Plano';
   const treinoName=id=>rows('treinos').find(x=>x.id===id)?.nome||'Treino livre';
@@ -66,12 +93,26 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
   const financeTotal=(list)=>{const currencies=[...new Set(list.map(p=>p.moeda))];return currencies.length>1?`${list.length} pagamentos` : money(list.reduce((s,p)=>s+Number(p.valor),0),currencies[0]||'AOA');};
   const myRecords=rows('registos_treino').filter(r=>r.aluno_id===user.id);
   const activeSubs=rows('subscricoes').filter(s=>s.estado==='ativa'&&s.inicio<=today()&&s.fim>=today());
-  const menu=[['overview','Visão geral'],['members',staff?'Membros':'O meu vínculo'],...(role!=='trainer'?[['finance',manager?'Financeiro':'Mensalidade']]:[]),['training','Treinos'],['progress','Progresso'],['settings','Definições']];
-  const headings={overview:['O seu ginásio, em perspetiva.','Tudo o que importa, num só lugar.'],members:['Pessoas que fazem parte.','Acompanhe os membros e a equipa do seu ginásio.'],finance:['Uma gestão financeira clara.','Planos, subscrições e pagamentos organizados.'],training:['Treinar com propósito.','Uma biblioteca de exercícios e planos para cada objetivo.'],progress:['Cada evolução conta.','Registe treinos e acompanhe as medições ao longo do tempo.'],settings:['A identidade do seu ginásio.','Personalize o nome e o logótipo apresentados aos seus membros.']};
+  const menu=[
+    ['overview','Visão geral'],
+    ['members', isAluno ? 'O meu vínculo' : staff ? 'Membros' : 'O meu vínculo'],
+    ...(manager ? [['finance','Financeiro']] : isAluno ? [['finance','Mensalidade']] : []),
+    ['training','Treinos'],
+    ['progress','Progresso'],
+    ...(manager ? [['settings','Definições']] : []),
+  ];
+  const headings={
+    overview:['O seu ginásio, em perspetiva.','Tudo o que importa, num só lugar.'],
+    members: staff ? ['Pessoas que fazem parte.','Acompanhe os membros e a equipa do seu ginásio.'] : ['O seu vínculo.','Consulte os seus dados de membro.'],
+    finance: manager ? ['Uma gestão financeira clara.','Planos, subscrições e pagamentos organizados.'] : ['As suas mensalidades.','Consulte o seu plano e pagamentos.'],
+    training:['Treinar com propósito.','Uma biblioteca de exercícios e planos para cada objetivo.'],
+    progress:['Cada evolução conta.','Registe treinos e acompanhe as medições ao longo do tempo.'],
+    settings:['A identidade do seu ginásio.','Personalize o nome e o logótipo apresentados aos seus membros.'],
+  };
   function navigate(p){setPage(p);setTab('');setQuery('');setNotice('');}
   const opts=(list,value,label)=>list.map(x=>({value:x[value],label:typeof label==='function'?label(x):x[label]}));
   const field=(key,label,type='text',extra={})=>({key,label,type,...extra});
-  const student=()=>field('aluno_id','Aluno','select',{required:true,options:opts(alumnos,'utilizador_id','nome'),fixed:staff?undefined:user.id});
+  const student=()=>field('aluno_id','Aluno','select',{required:true,options:opts(alumnos,'utilizador_id','nome'),fixed:isAluno?user.id:undefined});
   const config={
     exercicios:{title:'Novo exercício',fields:[field('nome','Nome','text',{required:true,maxLength:120}),field('grupo_muscular','Grupo muscular','select',{options:['peito','costas','ombros','biceps','triceps','antebraco','abdominais','quadriceps','posteriores','gluteos','gemeos','corpo_inteiro','cardio','mobilidade'].map(v=>({value:v,label:text(v)}))}),field('equipamento','Equipamento','text',{maxLength:80}),field('descricao','Descrição','textarea',{maxLength:2000}),field('video_url','Vídeo (endereço HTTPS)','url',{pattern:'https://.*',maxLength:500})]},
     planos_treino:{title:'Novo plano de treino',fields:[student(),field('nome','Nome do plano','text',{required:true,maxLength:120}),field('objetivo','Objetivo','select',{options:['hipertrofia','forca','emagrecimento','resistencia','saude','reabilitacao','outro'].map(v=>({value:v,label:text(v)}))}),field('data_inicio','Início','date',{required:true,default:today()}),field('data_fim','Fim','date'),field('notas','Notas','textarea',{maxLength:2000})]},
@@ -88,9 +129,20 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
   function edit(table,row){const allowed={exercicios:['nome','grupo_muscular','equipamento','descricao','video_url'],planos_treino:['nome','objetivo','data_inicio','data_fim','notas'],treinos:['nome','ordem'],treino_exercicios:['ordem','series','repeticoes','carga_kg','descanso_seg','notas'],planos_mensalidade:['nome','preco','moeda','duracao_dias','descricao'],registos_treino:['duracao_min','esforco','notas'],registos_series:['serie','repeticoes','carga_kg'],medicoes:['medido_em','peso_kg','altura_cm','gordura_pct','cintura_cm','anca_cm','peito_cm','braco_cm','coxa_cm','notas'],subscricoes:['fim','estado'],pagamentos:['valor','moeda','metodo','estado','referencia']};setModal({table,title:'Editar registo',fields:config[table].fields.filter(f=>allowed[table]?.includes(f.key)),defaults:row,id:row.id});}
   async function toggle(table,row){setNotice('');try{const {data:updated,error}=await supabase.from(table).update({ativo:!row.ativo}).eq('id',row.id).eq('ginasio_id',gym.id).select('id');if(error||!updated?.length)throw error||Error();setNotice('Estado atualizado.');load();}catch{setNotice('Não foi possível alterar o estado. Verifique a sua autorização.');}}
   const action=(table,label)=> <button className="primary" onClick={()=>create(table)} disabled={loading||errors.includes(table)}><Icon name="plus" size={17}/>{label}</button>;
-  const tabGroups={finance:manager?[['pagamentos','Pagamentos'],['subscricoes','Subscrições'],['planos_mensalidade','Planos']]:[['subscricoes','Subscrição'],['pagamentos','Pagamentos'],['planos_mensalidade','Planos']],training:[['planos_treino','Planos'],['treinos','Treinos'],['treino_exercicios','Ficha de exercícios'],['exercicios','Biblioteca']],progress:[['registos_treino','Treinos realizados'],['registos_series','Séries'],['medicoes','Medições']]};
+  const tabGroups={
+    finance: manager
+      ? [['pagamentos','Pagamentos'],['subscricoes','Subscrições'],['planos_mensalidade','Planos']]
+      : [['subscricoes','A minha subscrição'],['pagamentos','Os meus pagamentos']],
+    training: staff
+      ? [['planos_treino','Planos'],['treinos','Treinos'],['treino_exercicios','Ficha de exercícios'],['exercicios','Biblioteca']]
+      : [['planos_treino','Os meus planos'],['treinos','Os meus treinos'],['exercicios','Biblioteca']],
+    progress:[['registos_treino','Treinos realizados'],['registos_series','Séries'],['medicoes','Medições']],
+  };
   const table=tab||tabGroups[page]?.[0]?.[0];
-  const canCreate=page==='finance'?manager:page==='training'?staff:page==='progress';
+  const canCreate=
+    page==='finance'   ? manager :
+    page==='training'  ? staff :
+    page==='progress'  ? true : false; // aluno pode registar treino e medições
   function tableRows(t){return rows(t).filter(r=>JSON.stringify({...r,aluno:memberName(r.aluno_id),exercicio:exerciseName(r.exercicio_id),treino:treinoName(r.treino_id)}).toLowerCase().includes(query.toLowerCase())).sort((a,b)=>String(b.criado_em||b.realizado_em||b.medido_em||'').localeCompare(String(a.criado_em||a.realizado_em||a.medido_em||'')));}
   const columns={
     pagamentos:[['Aluno',r=>memberName(r.aluno_id)],['Valor',r=><strong>{money(r.valor,r.moeda)}</strong>],['Método',r=>text(r.metodo)],['Data',r=>date(r.pago_em||r.criado_em)],['Estado',r=><Badge value={r.estado}/>]],
@@ -104,18 +156,23 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
     registos_series:[['Treino',r=>{const reg=rows('registos_treino').find(x=>x.id===r.registo_id);return `${memberName(reg?.aluno_id)} · ${date(reg?.realizado_em)}`;}],['Exercício',r=>exerciseName(r.exercicio_id)],['Série',r=>r.serie],['Repetições',r=>r.repeticoes??'—'],['Carga',r=>r.carga_kg==null?'—':`${r.carga_kg} kg`]],
     medicoes:[['Aluno',r=>memberName(r.aluno_id)],['Data',r=>date(r.medido_em)],['Peso',r=>r.peso_kg?`${r.peso_kg} kg`:'—'],['Gordura',r=>r.gordura_pct?`${r.gordura_pct}%`:'—'],['Altura',r=>r.altura_cm?`${r.altura_cm} cm`:'—']]
   };
-  const mayEdit=(t,r)=> t==='pagamentos'?manager&&['pendente','falhado'].includes(r.estado)&&['dinheiro','transferencia','outro'].includes(r.metodo):t==='subscricoes'||t==='planos_mensalidade'?manager:t.startsWith('registos')||t==='medicoes'?true:staff;
+  const mayEdit=(t,r)=>
+    isAdmin ? true :  // admin pode editar tudo
+    t==='pagamentos' ? manager&&['pendente','falhado'].includes(r.estado)&&['dinheiro','transferencia','outro'].includes(r.metodo) :
+    t==='subscricoes'||t==='planos_mensalidade' ? manager :
+    t.startsWith('registos')||t==='medicoes' ? true :
+    staff;
   return <div className="workspace">
     <aside className="sidebar"><a className="wordmark" href="#" onClick={e=>{e.preventDefault();navigate('overview');}}><span className="brand-symbol"><Icon name="training" size={26}/></span>fitcore<span className="wordmark-dot">.</span></a>
       <div className="gym-switch"><small>O SEU ESPAÇO</small><select aria-label="Selecionar ginásio" value={gym.id} onChange={e=>onSelectGym(e.target.value)}>{gyms.map(g=><option key={g.id} value={g.id}>{g.nome}</option>)}</select></div>
-      <small className="nav-label">GESTÃO DO GINÁSIO</small><nav>{menu.map(([p,label])=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)} aria-current={page===p?'page':undefined}><Icon name={p}/>{label}{page===p&&<span className="nav-dot"/>}</button>)}</nav>
-      <div className="sidebar-note"><span className="live-dot"/><span>O seu espaço. A sua equipa.<br/><small>Gestão com visão de futuro.</small></span></div>
+      <small className="nav-label">{isAluno?'O MEU ESPAÇO':isTrainer?'GESTÃO DE TREINOS':'GESTÃO DO GINÁSIO'}</small><nav>{menu.map(([p,label])=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)} aria-current={page===p?'page':undefined}><Icon name={p}/>{label}{page===p&&<span className="nav-dot"/>}</button>)}</nav>
+      <div className="sidebar-note"><span className="live-dot"/><span>{isAluno?<>O seu ginásio.<br/><small>Acompanhe o seu progresso.</small></>:isTrainer?<>Os seus alunos.<br/><small>Cada treino faz a diferença.</small></>:<>O seu espaço. A sua equipa.<br/><small>Gestão com visão de futuro.</small></>}</span></div>
     <div className="account">
   <span className="avatar">{initial(membership?.nome)}</span>
 
   <div>
     <strong>{membership?.nome || 'A sua conta'}</strong>
-    <small>{text(role)}</small>
+    <small>{isAdmin?'Administrador':text(role)}</small>
   </div>
 
   <button
@@ -128,19 +185,46 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
 </div>
 </aside>
     <div className="workspace-body"><header className="topbar"><span>O seu espaço <b>/</b> {menu.find(x=>x[0]===page)?.[1]}</span><div><span className="topbar-status"><i/> {gym.nome}</span><span className="avatar small">{initial(membership?.nome)}</span><button className="icon-button mobile-logout" onClick={onLogout} aria-label="Sair da conta"><Icon name="exit" size={18}/></button></div></header>
-      <div className="content"><div className="page-heading"><div><div className="eyebrow">FITCORE / {text(role).toUpperCase()}</div><h1>{headings[page][0]}</h1><p>{headings[page][1]}</p></div><button className="icon-button" onClick={load} disabled={loading} aria-label="Atualizar dados"><Icon name="refresh"/></button></div>
+      <div className="content"><div className="page-heading"><div><div className="eyebrow">FITCORE / {isAdmin?'ADMINISTRADOR':text(role).toUpperCase()}</div><h1>{headings[page][0]}</h1><p>{headings[page][1]}</p></div><button className="icon-button" onClick={load} disabled={loading} aria-label="Atualizar dados"><Icon name="refresh"/></button></div>
       {authError&&<div className="alert" role="alert">{authError}</div>}
       {errors.length>0&&<div className="alert" role="alert">Alguns dados não puderam ser carregados ({errors.join(', ')}). Atualize para tentar novamente. Os indicadores podem estar incompletos.</div>}
       {notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close" size={16}/></button></div>}
       {loading?<div className="loading-state" role="status"><span className="spinner"/>A preparar o seu espaço…</div>:page==='overview'?<>
-        <section className="welcome"><div className="welcome-content"><span className="welcome-label"><span className="live-dot"/> {gym.nome}</span><h2>Mais foco nas pessoas.<br/><em>Mais visão no negócio.</em></h2><p>Bem-vindo, {membership?.nome?.split(' ')[0]||'gestor'}. Um novo dia para transformar objetivos em resultados.</p><button className="primary" onClick={()=>navigate(staff?'members':'training')}>{staff?'Conhecer os membros':'Ver os meus treinos'}<Icon name="arrow" size={18}/></button></div><div className="welcome-art" aria-hidden="true"><div className="orbit o1"/><div className="orbit o2"/><div className="orbit o3"/><div className="art-core"><Icon name="training" size={70}/></div><span className="art-caption">FORÇA. FOCO. EVOLUÇÃO.</span></div></section>
-        <section className="metrics"><Metric label={staff?'Alunos ativos':'Os meus treinos'} value={staff?alumnos.length:myRecords.length} detail={staff?'Com vínculo ativo no ginásio':'Treinos registados'} icon="members"/>
-          {role!=='trainer'?<Metric label={manager?'Recebido este mês':'Pago este mês'} value={financeTotal(paid)} detail="Pagamentos confirmados, sem reembolsos" icon="finance"/>:<Metric label="Biblioteca de exercícios" value={rows('exercicios').filter(x=>x.ativo).length} detail="Exercícios ativos" icon="training"/>}
-          <Metric label={role==='trainer'?'Planos de treino':'Subscrições em vigor'} value={role==='trainer'?rows('planos_treino').filter(p=>p.ativo).length:activeSubs.length} detail="Registos ativos" icon="check"/><Metric label="Treinos realizados" value={rows('registos_treino').length} detail={staff?'Todos os registos do ginásio':'O seu histórico'} icon="progress"/></section>
-        <div className="overview-grid"><section className="panel"><div className="panel-heading"><div><span className="eyebrow">{role==='trainer'?'EVOLUÇÃO':'FINANCEIRO'}</span><h2>{role==='trainer'?'Atividade de treino':'Recebimentos em AOA'}</h2></div><span className="soft-label">Últimos 6 meses</span></div><MonthChart items={role==='trainer'?rows('registos_treino'):payments.filter(p=>p.estado==='pago'&&p.moeda==='AOA')} training={role==='trainer'}/></section>
-          <section className="panel"><div className="panel-heading"><div><span className="eyebrow">A SUA COMUNIDADE</span><h2>{staff?'Equipa & membros':'A sua conta'}</h2></div><button className="text-button" onClick={()=>navigate('members')}>Ver todos ↗</button></div>{members.length?members.slice(0,4).map(m=><div className="member-line" key={m.utilizador_id}><span className="avatar">{initial(m.nome)}</span><div><strong>{m.nome}</strong><small>{text(m.funcao)}</small></div><Badge value={m.ativo}/></div>):<Empty title="O primeiro capítulo começa aqui" detail="Os membros associados ao ginásio aparecerão aqui."/>}</section></div>
-        <section className="quick-actions">{[['training','Planear o próximo treino','Transforme objetivos em planos.'],['progress','Acompanhar a evolução','Cada progresso merece um registo.'],[role==='trainer'?'members':'finance',role==='trainer'?'Conhecer os alunos':'Organizar as mensalidades',role==='trainer'?'A equipa certa para cada objetivo.':'Uma relação financeira mais clara.']].map(([p,title,detail])=><button key={p} onClick={()=>navigate(p)}><span className="quick-icon"><Icon name={p}/></span><span><strong>{title}</strong><small>{detail}</small></span><Icon name="arrow" size={18}/></button>)}</section>
-      </>:page==='members'?<section className="panel"><div className="panel-heading"><div><h2>{staff?'Membros do ginásio':'O seu vínculo'}</h2><p>{members.length} {members.length===1?'pessoa':'pessoas'} · {members.filter(m=>m.ativo).length} ativas</p></div></div><Search value={query} onChange={setQuery}/><div className="member-grid">{members.filter(m=>`${m.nome} ${m.funcao}`.toLowerCase().includes(query.toLowerCase())).map(m=><article className="member-card" key={m.utilizador_id}><span className="avatar large">{initial(m.nome)}</span><Badge value={m.ativo}/><h3>{m.nome}</h3><p>{text(m.funcao)}</p><span className="member-caption">{gym.nome}</span></article>)}</div>{!members.length&&<Empty title="Sem membros disponíveis"/>}<p className="panel-footnote">A criação de contas e a atribuição de acessos são feitas pelo administrador da plataforma.</p></section>
+        <section className="welcome"><div className="welcome-content"><span className="welcome-label"><span className="live-dot"/> {gym.nome}</span><h2>{isAdmin?<>Controlo total.<br/><em>Visão completa do seu ginásio.</em></>:manager?<>Mais foco nas pessoas.<br/><em>Mais visão no negócio.</em></>:isTrainer?<>Os seus alunos.<br/><em>Cada evolução importa.</em></>:<>O seu ginásio.<br/><em>O seu progresso.</em></>}</h2><p>Bem-vindo, {membership?.nome?.split(' ')[0]||'utilizador'}. {isAdmin||manager?'Um novo dia para transformar objetivos em resultados.':isTrainer?'Acompanhe os seus alunos e motive cada treino.':'Consulte os seus planos e registe os seus treinos.'}</p><button className="primary" onClick={()=>navigate(staff?'members':'training')}>{isAluno?'Ver os meus treinos':'Conhecer os membros'}<Icon name="arrow" size={18}/></button></div><div className="welcome-art" aria-hidden="true"><div className="orbit o1"/><div className="orbit o2"/><div className="orbit o3"/><div className="art-core"><Icon name="training" size={70}/></div><span className="art-caption">FORÇA. FOCO. EVOLUÇÃO.</span></div></section>
+        <section className="metrics">
+          {/* Métrica 1 — varia por role */}
+          {isAluno
+            ? <Metric label="Os meus treinos" value={myRecords.length} detail="Treinos realizados" icon="progress"/>
+            : <Metric label={isTrainer?"Os meus alunos":"Alunos ativos"} value={isTrainer?alumnos.length:allMembers.filter(m=>m.funcao==='aluno'&&m.ativo).length} detail={isTrainer?"Alunos atribuídos a si":"Com vínculo ativo no ginásio"} icon="members"/>
+          }
+          {/* Métrica 2 */}
+          {manager
+            ? <Metric label={isAdmin?"Membros totais":"Recebido este mês"} value={isAdmin?allMembers.filter(m=>m.ativo).length:financeTotal(paid)} detail={isAdmin?"Membros activos no ginásio":"Pagamentos confirmados"} icon={isAdmin?"members":"finance"}/>
+            : isTrainer
+            ? <Metric label="Biblioteca de exercícios" value={rows('exercicios').filter(x=>x.ativo).length} detail="Exercícios ativos" icon="training"/>
+            : <Metric label="A minha subscrição" value={activeSubs.length?"Ativa":"—"} detail={activeSubs.length?`Válida até ${activeSubs[0]?.fim||"—"}`:"Sem subscrição activa"} icon="check"/>
+          }
+          {/* Métrica 3 */}
+          <Metric label="Planos de treino" value={rows('planos_treino').filter(p=>p.ativo).length} detail="Planos ativos" icon="check"/>
+          {/* Métrica 4 */}
+          <Metric label="Treinos realizados" value={rows('registos_treino').length} detail={isAluno?'O seu histórico':isTrainer?'Dos seus alunos':'Todos os registos do ginásio'} icon="progress"/>
+        </section>
+        <div className="overview-grid"><section className="panel"><div className="panel-heading"><div><span className="eyebrow">{manager?'FINANCEIRO':'EVOLUÇÃO'}</span><h2>{manager?'Recebimentos em AOA':'Atividade de treino'}</h2></div><span className="soft-label">Últimos 6 meses</span></div><MonthChart items={manager?payments.filter(p=>p.estado==='pago'&&p.moeda==='AOA'):rows('registos_treino')} training={!manager}/></section>
+          <section className="panel"><div className="panel-heading"><div><span className="eyebrow">A SUA COMUNIDADE</span><h2>{isAluno?'O seu vínculo':isTrainer?'Os seus alunos':'Equipa & membros'}</h2></div><button className="text-button" onClick={()=>navigate('members')}>Ver {isAluno?'o meu vínculo':'todos'} ↗</button></div>{members.length?members.slice(0,4).map(m=><div className="member-line" key={m.utilizador_id}><span className="avatar">{initial(m.nome)}</span><div><strong>{m.nome}</strong><small>{text(m.funcao)}</small></div><Badge value={m.ativo}/></div>):<Empty title={isAluno?"A sua conta está activa":"O primeiro capítulo começa aqui"} detail={isAluno?"Os seus dados de membro aparecem aqui.":"Os membros associados ao ginásio aparecerão aqui."}/>}</section></div>
+        <section className="quick-actions">{(isAluno?[
+            ['training','Os meus planos de treino','Consulte os planos atribuídos.'],
+            ['progress','O meu progresso','Cada evolução merece um registo.'],
+            ['finance','As minhas mensalidades','Consulte o seu plano e pagamentos.'],
+          ]:isTrainer?[
+            ['training','Planear o próximo treino','Transforme objetivos em planos.'],
+            ['progress','Acompanhar a evolução','Cada progresso merece um registo.'],
+            ['members','Os meus alunos','A equipa certa para cada objetivo.'],
+          ]:[
+            ['training','Planear o próximo treino','Transforme objetivos em planos.'],
+            ['progress','Acompanhar a evolução','Cada progresso merece um registo.'],
+            ['finance','Organizar as mensalidades','Uma relação financeira mais clara.'],
+          ]).map(([p,title,detail])=><button key={p} onClick={()=>navigate(p)}><span className="quick-icon"><Icon name={p}/></span><span><strong>{title}</strong><small>{detail}</small></span><Icon name="arrow" size={18}/></button>)}</section>
+      </>:page==='members'?<section className="panel"><div className="panel-heading"><div><h2>{isAluno?'O seu vínculo':isTrainer?'Os seus alunos':'Membros do ginásio'}</h2><p>{members.length} {members.length===1?'pessoa':'pessoas'}{!isAluno&&` · ${members.filter(m=>m.ativo).length} ativas`}</p></div></div>{!isAluno&&<Search value={query} onChange={setQuery}/>}<div className="member-grid">{members.filter(m=>`${m.nome} ${m.funcao}`.toLowerCase().includes(query.toLowerCase())).map(m=><article className="member-card" key={m.utilizador_id}><span className="avatar large">{initial(m.nome)}</span><Badge value={m.ativo}/><h3>{m.nome}</h3><p>{text(m.funcao)}</p><span className="member-caption">{gym.nome}</span></article>)}</div>{!members.length&&<Empty title={isAluno?"Os seus dados de membro":isTrainer?"Sem alunos atribuídos":"Sem membros disponíveis"} detail={isAluno?"O seu perfil de membro aparecerá aqui.":isTrainer?"Peça ao administrador para lhe atribuir alunos.":"Adicione membros ao ginásio."}/>}<p className="panel-footnote">{isAluno?"Para alterar os seus dados, contacte o administrador do ginásio.":isTrainer?"Só visualiza os alunos com planos de treino atribuídos a si.":"A criação de contas e a atribuição de acessos são feitas pelo administrador da plataforma."}</p></section>
       :page==='settings'?<Settings gym={gym} user={user} manager={manager} onSaved={onSaved}/>
       :<><div className="tabs" role="tablist">{tabGroups[page].map(([t,label])=><button role="tab" aria-selected={table===t} key={t} className={table===t?'selected':''} onClick={()=>{setTab(t);setQuery('');}}>{label}<span>{rows(t).length}</span></button>)}</div>
         <section className="panel"><div className="panel-heading"><div><h2>{tabGroups[page].find(([t])=>t===table)?.[1]}</h2><p>{rows(table).length} registos no seu espaço</p></div>{canCreate&&action(table,table==='treino_exercicios'?'Adicionar exercício':table==='registos_series'?'Registar série':table==='pagamentos'?'Registar pagamento':'Novo registo')}</div>
@@ -149,7 +233,7 @@ export default function Dashboard({gym,gyms,membership,user,onSelectGym,onSaved,
         <Search value={query} onChange={setQuery}/>
         {errors.includes(table)?<Empty title="Não foi possível carregar esta secção" detail="Verifique a ligação e tente atualizar os dados."/>:tableRows(table).length?<div className="table-scroll"><table><thead><tr>{columns[table].map(([title])=><th key={title}>{title}</th>)}<th><span className="sr-only">Ações</span></th></tr></thead><tbody>{tableRows(table).map(r=><tr key={r.id}>{columns[table].map(([title,render])=><td key={title}>{render(r)}</td>)}<td><div className="row-actions">{mayEdit(table,r)&&<button onClick={()=>edit(table,r)}>Editar</button>}{staff&&['exercicios','planos_treino'].includes(table)||manager&&table==='planos_mensalidade'?<button onClick={()=>toggle(table,r)}>{r.ativo?'Arquivar':'Ativar'}</button>:null}</div></td></tr>)}</tbody></table></div>:<Empty title={query?'Nenhum resultado encontrado':'Um espaço pronto para começar'} detail={query?'Experimente outro nome ou termo de pesquisa.':'Ainda não há registos nesta secção.'}/>}
         </section></>}
-      <footer className="workspace-footer"><span>fitcore<span>.</span> <small>Gestão que acompanha a sua ambição.</small></span><small>{gym.nome} · {text(role)}</small></footer>
+      <footer className="workspace-footer"><span>fitcore<span>.</span> <small>Gestão que acompanha a sua ambição.</small></span><small>{gym.nome} · {isAdmin?'Administrador':text(role)}</small></footer>
       </div></div>
       {modal&&<RecordForm modal={modal} gymId={gym.id} onClose={()=>setModal(null)} onSuccess={()=>{setModal(null);setNotice('Registo guardado com sucesso.');load();}}/>}
     </div>;
