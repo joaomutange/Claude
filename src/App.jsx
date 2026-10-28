@@ -614,6 +614,15 @@ export default function App() {
   async function loadUserData(user) {
     setDataLoading(true); setAuthError("");
     try {
+      // Lista de emails superadmin (fallback imediato enquanto RLS é depurada)
+      const SUPERADMIN_EMAILS = ["joaomutange@gmail.com"];
+      if (SUPERADMIN_EMAILS.includes(user.email)) {
+        setSuperadmin({ nome: "Miguel Mutange", email: user.email, utilizador_id: user.id, ativo: true });
+        setIsSuperadmin(true);
+        setDataLoading(false);
+        return;
+      }
+
       // Verificar superadmin via função RPC (SECURITY DEFINER, ignora RLS)
       const [saFnResult, memberResult] = await Promise.all([
         supabase.rpc("is_superadmin"),
@@ -625,7 +634,6 @@ export default function App() {
       }
 
       if (saFnResult.data === true) {
-        // Buscar os dados do superadmin
         const { data: saData } = await supabase
           .from("superadmins").select("*").eq("email", user.email).maybeSingle();
         setSuperadmin(saData || { nome: user.email, email: user.email, utilizador_id: user.id, ativo: true });
