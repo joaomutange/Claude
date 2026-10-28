@@ -25,12 +25,8 @@ async function all(table,gymId,role,userId) {
   const rows=[];
   for(let offset=0;;offset+=1000) {
     let q=supabase.from(table).select('*').eq('ginasio_id',gymId).range(offset,offset+999).order(table==='membros_ginasio'?'utilizador_id':'id');
-    // Trainer: só dados dos seus alunos (planos, treinos, registos, medições)
-    if(role==='trainer') {
-      if(table==='planos_treino') q=q.eq('trainer_id',userId);
-      else if(['registos_treino','registos_series'].includes(table)) {/* filtrado no cliente depois */}
-      else if(table==='medicoes') {/* filtrado no cliente depois */}
-    }
+    // Trainer: planos_treino carregados todos do ginásio; filtragem no cliente via trainerStudentIds
+    // (registos_treino, registos_series, medicoes também filtrados no cliente)
     // Aluno: só os seus próprios dados
     if(role==='aluno') {
       if(['planos_treino','registos_treino','medicoes','subscricoes','pagamentos'].includes(table)) q=q.eq('aluno_id',userId);
