@@ -995,12 +995,288 @@ function DashboardGestor({ unidades, unidadeAtual, enviarNotifAluno }) {
 // ═══════════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════════
-function LoginScreen({ credenciais, onLogin }) {
-  const [email,   setEmail]   = useState("");
-  const [senha,   setSenha]   = useState("");
-  const [showS,   setShowS]   = useState(false);
-  const [erro,    setErro]    = useState("");
-  const [loading, setLoading] = useState(false);
+// ═══════════════════════════════════════════════════════
+// RECUPERAÇÃO DE SENHA
+// ═══════════════════════════════════════════════════════
+function RecuperarSenha({ credenciais, setCredenciais, onVoltar }) {
+  // fase: "email" → "codigo" → "nova" → "ok"
+  const [fase,       setFase]       = useState("email");
+  const [email,      setEmail]      = useState("");
+  const [codigoReal, setCodigoReal] = useState("");
+  const [codigoInput,setCodigoInput]= useState(["","","","","",""]);
+  const [novaSenha,  setNovaSenha]  = useState("");
+  const [confirmar,  setConfirmar]  = useState("");
+  const [showN,      setShowN]      = useState(false);
+  const [showC,      setShowC]      = useState(false);
+  const [erro,       setErro]       = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [countdown,  setCountdown]  = useState(0);
+  const inputsRef    = useRef([]);
+
+  // Contador para reenvio
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
+
+  const gerarCodigo = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Fase 1 — verificar e-mail e enviar código
+  const pedirCodigo = () => {
+    setErro(""); setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      const u = credenciais[email.trim().toLowerCase()];
+      if (!u) { setErro("E-mail não encontrado na plataforma."); return; }
+      const cod = gerarCodigo();
+      setCodigoReal(cod);
+      setCountdown(60);
+      setFase("codigo");
+      // Em produção: enviar e-mail real. Aqui mostramos em console para demo.
+      console.log(`[FitCore Demo] Código de recuperação para ${email}: ${cod}`);
+    }, 900);
+  };
+
+  // Reenviar código
+  const reenviar = () => {
+    const cod = gerarCodigo();
+    setCodigoReal(cod);
+    setCodigoInput(["","","","","",""]);
+    setCountdown(60);
+    setErro("");
+    console.log(`[FitCore Demo] Novo código para ${email}: ${cod}`);
+  };
+
+  // Digitar código — auto-avançar entre caixas
+  const digitarCod = (i, val) => {
+    if (!/^\d?$/.test(val)) return;
+    const novo = [...codigoInput];
+    novo[i] = val;
+    setCodigoInput(novo);
+    setErro("");
+    if (val && i < 5) inputsRef.current[i + 1]?.focus();
+  };
+
+  const colarCod = (e) => {
+    const txt = e.clipboardData.getData("text").replace(/\D/g,"").slice(0,6);
+    if (txt.length === 6) {
+      setCodigoInput(txt.split(""));
+      setErro("");
+      inputsRef.current[5]?.focus();
+    }
+  };
+
+  const backspaceCod = (i, e) => {
+    if (e.key === "Backspace" && !codigoInput[i] && i > 0) {
+      inputsRef.current[i - 1]?.focus();
+    }
+  };
+
+  // Fase 2 — verificar código
+  const verificarCodigo = () => {
+    const entrada = codigoInput.join("");
+    if (entrada.length < 6) { setErro("Introduza os 6 dígitos do código."); return; }
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (entrada !== codigoReal) { setErro("Código inválido. Verifique e tente novamente."); return; }
+      setFase("nova");
+    }, 700);
+  };
+
+  // Fase 3 — definir nova senha
+  const definirSenha = () => {
+    setErro("");
+    if (novaSenha.length < 6) { setErro("A senha deve ter pelo menos 6 caracteres."); return; }
+    if (novaSenha !== confirmar) { setErro("As senhas não coincidem."); return; }
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      const key = email.trim().toLowerCase();
+      setCredenciais(prev => ({ ...prev, [key]: { ...prev[key], senha: novaSenha } }));
+      setFase("ok");
+    }, 800);
+  };
+
+  const labelSt = { fontSize:11, color:C.t3, fontWeight:600, marginBottom:4, display:"block" };
+
+  // ── Cabeçalho comum ──────────────────────────────────
+  const Header = ({ icon, titulo, sub }) => (
+    <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
+      <div style={{ fontSize:40, marginBottom:10 }}>{icon}</div>
+      <div style={{ fontWeight:800, fontSize:17, color:C.t1, marginBottom:4 }}>{titulo}</div>
+      <div style={{ fontSize:12, color:C.t3, lineHeight:1.5 }}>{sub}</div>
+    </div>
+  );
+
+  return (
+    <div className="login-page">
+      <div className="login-hero">
+        <div style={{ width:72,height:72,borderRadius:18,background:`linear-gradient(135deg,${C.goldD},${C.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:`0 8px 32px rgba(201,151,62,.35)` }}>🏋️</div>
+        <h1 style={{ fontSize:"2rem",letterSpacing:"-.04em",marginBottom:6 }}>FitCore</h1>
+        <p style={{ fontSize:13,color:C.t3,letterSpacing:.3 }}>Recuperação de acesso</p>
+        <GoldLine/>
+      </div>
+
+      <div className="login-body">
+        <div className="login-card">
+
+          {/* ── FASE: email ────────────────────────────── */}
+          {fase === "email" && <>
+            <Header icon="🔑" titulo="Esqueceu a senha?" sub={`Introduza o e-mail associado à sua conta\ne enviaremos um código de verificação.`}/>
+            <div style={{ marginBottom:14 }}>
+              <label style={labelSt}>E-mail da conta</label>
+              <input className={`input${erro?" err":""}`} value={email} onChange={e=>{setEmail(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&pedirCodigo()} placeholder="seunome@fitcore.ao" autoFocus/>
+            </div>
+            {erro && <div className="alert alert-err" style={{ marginBottom:12 }}>⚠️ {erro}</div>}
+            <Btn full variant="gold" onClick={pedirCodigo} disabled={loading||!email.trim()}>
+              {loading ? "A verificar…" : "Enviar código de verificação"}
+            </Btn>
+            <div style={{ textAlign:"center", marginTop:14 }}>
+              <button onClick={onVoltar} style={{ background:"none",border:"none",cursor:"pointer",color:C.t3,fontSize:12,fontFamily:"inherit" }}>← Voltar ao login</button>
+            </div>
+          </>}
+
+          {/* ── FASE: codigo ───────────────────────────── */}
+          {fase === "codigo" && <>
+            <Header icon="📨" titulo="Verifique o seu e-mail" sub={`Enviámos um código de 6 dígitos para\n${email}`}/>
+
+            {/* Caixas de dígitos */}
+            <div style={{ display:"flex", gap:8, justifyContent:"center", margin:"16px 0" }} onPaste={colarCod}>
+              {codigoInput.map((d, i) => (
+                <input
+                  key={i}
+                  ref={el => inputsRef.current[i] = el}
+                  maxLength={1}
+                  value={d}
+                  onChange={e => digitarCod(i, e.target.value)}
+                  onKeyDown={e => backspaceCod(i, e)}
+                  style={{
+                    width:44, height:52, textAlign:"center", fontSize:22, fontWeight:700,
+                    background:C.cardH, border:`2px solid ${d?C.gold:C.border}`,
+                    borderRadius:10, color:C.t1, outline:"none", fontFamily:"monospace",
+                    transition:"border-color .15s",
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Demo: mostrar código */}
+            <div style={{ background:"rgba(74,158,204,.08)",border:"1px solid rgba(74,158,204,.2)",borderRadius:8,padding:"8px 12px",marginBottom:12,textAlign:"center" }}>
+              <div style={{ fontSize:10,color:C.info,fontWeight:600,marginBottom:2 }}>MODO DEMONSTRAÇÃO</div>
+              <div style={{ fontSize:13,color:C.info,fontFamily:"monospace",letterSpacing:4 }}>{codigoReal}</div>
+            </div>
+
+            {erro && <div className="alert alert-err" style={{ marginBottom:12 }}>⚠️ {erro}</div>}
+            <Btn full variant="gold" onClick={verificarCodigo} disabled={loading||codigoInput.join("").length<6}>
+              {loading ? "A verificar…" : "Confirmar código"}
+            </Btn>
+
+            <div style={{ textAlign:"center", marginTop:14 }}>
+              {countdown > 0
+                ? <span style={{ fontSize:12,color:C.t3 }}>Reenviar código em <b style={{ color:C.gold }}>{countdown}s</b></span>
+                : <button onClick={reenviar} style={{ background:"none",border:"none",cursor:"pointer",color:C.gold,fontSize:12,fontFamily:"inherit",fontWeight:600 }}>🔄 Reenviar código</button>
+              }
+            </div>
+            <div style={{ textAlign:"center", marginTop:8 }}>
+              <button onClick={()=>{setFase("email");setErro("");}} style={{ background:"none",border:"none",cursor:"pointer",color:C.t3,fontSize:12,fontFamily:"inherit" }}>← Alterar e-mail</button>
+            </div>
+          </>}
+
+          {/* ── FASE: nova senha ───────────────────────── */}
+          {fase === "nova" && <>
+            <Header icon="🔒" titulo="Definir nova senha" sub="Escolha uma senha segura com pelo menos 6 caracteres."/>
+            <div style={{ marginBottom:12 }}>
+              <label style={labelSt}>Nova senha</label>
+              <div style={{ position:"relative" }}>
+                <input className={`input${erro?" err":""}`} type={showN?"text":"password"} value={novaSenha} onChange={e=>{setNovaSenha(e.target.value);setErro("");}} placeholder="Mínimo 6 caracteres" style={{ paddingRight:40 }} autoFocus/>
+                <button onClick={()=>setShowN(s=>!s)} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16 }}>{showN?"🙈":"👁️"}</button>
+              </div>
+            </div>
+            {/* Indicador de força */}
+            {novaSenha && (
+              <div style={{ marginBottom:12 }}>
+                {(() => {
+                  const forca = (novaSenha.length >= 8 ? 1 : 0) + (/[A-Z]/.test(novaSenha)?1:0) + (/\d/.test(novaSenha)?1:0) + (/[^a-zA-Z0-9]/.test(novaSenha)?1:0);
+                  const cfg   = forca<=1?{label:"Fraca",cor:C.err}:forca===2?{label:"Média",cor:C.warn}:forca===3?{label:"Boa",cor:C.gold}:{label:"Forte",cor:C.ok};
+                  return (
+                    <>
+                      <div style={{ display:"flex",gap:4,marginBottom:4 }}>
+                        {[1,2,3,4].map(n => <div key={n} style={{ flex:1,height:3,borderRadius:99,background:n<=forca?cfg.cor:C.border,transition:"background .2s" }}/>)}
+                      </div>
+                      <div style={{ fontSize:10,color:cfg.cor,fontWeight:600 }}>Senha {cfg.label}</div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            <div style={{ marginBottom:14 }}>
+              <label style={labelSt}>Confirmar nova senha</label>
+              <div style={{ position:"relative" }}>
+                <input className={`input${erro?" err":""}`} type={showC?"text":"password"} value={confirmar} onChange={e=>{setConfirmar(e.target.value);setErro("");}} placeholder="Repetir a senha" style={{ paddingRight:40 }}/>
+                <button onClick={()=>setShowC(s=>!s)} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16 }}>{showC?"🙈":"👁️"}</button>
+              </div>
+              {confirmar && novaSenha && (
+                <div style={{ fontSize:10,marginTop:4,color:confirmar===novaSenha?C.ok:C.err }}>
+                  {confirmar===novaSenha?"✅ As senhas coincidem":"❌ As senhas não coincidem"}
+                </div>
+              )}
+            </div>
+            {erro && <div className="alert alert-err" style={{ marginBottom:12 }}>⚠️ {erro}</div>}
+            <Btn full variant="gold" onClick={definirSenha} disabled={loading||!novaSenha||!confirmar}>
+              {loading ? "A guardar…" : "Guardar nova senha"}
+            </Btn>
+          </>}
+
+          {/* ── FASE: ok ───────────────────────────────── */}
+          {fase === "ok" && <>
+            <div style={{ textAlign:"center", padding:"24px 0" }}>
+              <div style={{ width:72,height:72,borderRadius:"50%",background:"rgba(76,175,114,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 16px",border:`2px solid ${C.ok}` }}>✅</div>
+              <div style={{ fontWeight:800,fontSize:18,color:C.t1,marginBottom:6 }}>Senha actualizada!</div>
+              <div style={{ fontSize:13,color:C.t3,lineHeight:1.6 }}>
+                A sua senha foi alterada com sucesso.<br/>
+                Já pode entrar com as novas credenciais.
+              </div>
+            </div>
+            <Btn full variant="gold" onClick={onVoltar}>Entrar na plataforma →</Btn>
+          </>}
+
+        </div>
+
+        {/* Passos de progresso */}
+        {fase !== "ok" && (
+          <div style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:20 }}>
+            {[["email","1"],["codigo","2"],["nova","3"]].map(([f,n],i,arr) => {
+              const activo    = fase===f;
+              const concluido = ["email","codigo","nova"].indexOf(fase) > i;
+              return (
+                <div key={f} style={{ display:"flex",alignItems:"center",gap:8 }}>
+                  <div style={{ width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:concluido?C.ok:activo?C.gold:C.cardH,color:concluido||activo?C.bg:C.t3,border:`2px solid ${concluido?C.ok:activo?C.gold:C.border}`,transition:"all .2s" }}>
+                    {concluido?"✓":n}
+                  </div>
+                  {i < arr.length-1 && <div style={{ width:24,height:2,background:concluido?C.ok:C.border,borderRadius:99,transition:"background .2s" }}/>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <p style={{ textAlign:"center",marginTop:20,fontSize:10,color:C.t3,letterSpacing:.3 }}>FITCORE © 2026 · VERSÃO ENTERPRISE</p>
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({ credenciais, setCredenciais, onLogin }) {
+  const [email,      setEmail]      = useState("");
+  const [senha,      setSenha]      = useState("");
+  const [showS,      setShowS]      = useState(false);
+  const [erro,       setErro]       = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [recuperar,  setRecuperar]  = useState(false);
+
+  if (recuperar) return <RecuperarSenha credenciais={credenciais} setCredenciais={setCredenciais} onVoltar={()=>setRecuperar(false)}/>;
 
   const tentar = () => {
     setErro(""); setLoading(true);
@@ -1071,15 +1347,20 @@ function LoginScreen({ credenciais, onLogin }) {
             <label style={{ fontSize:11,color:C.t3,fontWeight:600 }}>E-mail</label>
             <input className={`input${erro?" err":""}`} style={{ marginTop:4 }} value={email} onChange={e=>{setEmail(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} placeholder="seunome@fitcore.ao"/>
           </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ fontSize:11,color:C.t3,fontWeight:600 }}>Senha</label>
-            <div style={{ position:"relative",marginTop:4 }}>
+          <div style={{ marginBottom:4 }}>
+            <div className="flex justify-between items-center" style={{ marginBottom:4 }}>
+              <label style={{ fontSize:11,color:C.t3,fontWeight:600 }}>Senha</label>
+              <button onClick={()=>setRecuperar(true)} style={{ background:"none",border:"none",cursor:"pointer",color:C.gold,fontSize:11,fontFamily:"inherit",fontWeight:600 }}>Esqueceu a senha?</button>
+            </div>
+            <div style={{ position:"relative" }}>
               <input className={`input${erro?" err":""}`} type={showS?"text":"password"} value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} placeholder="••••••••" style={{ paddingRight:40 }}/>
               <button onClick={()=>setShowS(s=>!s)} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16 }}>{showS?"🙈":"👁️"}</button>
             </div>
           </div>
           {erro && <div className="alert alert-err" style={{ marginBottom:10 }}>⚠️ {erro}</div>}
-          <Btn full variant="gold" onClick={tentar} disabled={loading}>{loading?"A verificar…":"Entrar"}</Btn>
+          <div style={{ marginTop:14 }}>
+            <Btn full variant="gold" onClick={tentar} disabled={loading}>{loading?"A verificar…":"Entrar"}</Btn>
+          </div>
           <GoldLine/>
           <div style={{ fontSize:10,color:C.t3,textAlign:"center",letterSpacing:.3,marginBottom:8 }}>ACESSO RÁPIDO — DEMONSTRAÇÃO</div>
           <div className="stack" style={{ gap:4 }}>
@@ -1147,7 +1428,7 @@ export default function App() {
   const handleLogin = u => { setUser(u); setTela("app"); setAba(u.perfil==="trainer"?"checkin":u.perfil==="gestor"?"dashboard":"inicio"); };
   const handleLogout= () => { setUser(null); setTela("login"); setMostrarInsc(false); };
 
-  if (tela==="login"||!user) return <LoginScreen credenciais={credenciais} onLogin={handleLogin}/>;
+  if (tela==="login"||!user) return <LoginScreen credenciais={credenciais} setCredenciais={setCredenciais} onLogin={handleLogin}/>;
 
   const navItems = user.perfil==="gestor" ? NAV_GESTOR : user.perfil==="trainer" ? NAV_TRAINER : NAV_ALUNO;
   const perfilLabel = { gestor:"Gestor Geral", trainer:"Personal Trainer", aluno:"Membro" }[user.perfil];
