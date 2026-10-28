@@ -308,7 +308,7 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
       .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
     const { data, error: err } = await supabase
       .from("ginasios")
-      .insert({ nome: form.nome?.trim(), slug })
+      .insert({ nome: form.nome?.trim(), slug, morada: form.morada?.trim()||null, telefone: form.telefone?.trim()||null })
       .select("id,nome")
       .single();
     if (err) { setError("Erro ao criar ginásio: " + err.message); setBusy(false); return; }
@@ -473,12 +473,14 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
             ) : (
               <div className="table-scroll">
                 <table>
-                  <thead><tr><th>Nome</th><th>Slug</th><th>Criado em</th></tr></thead>
+                  <thead><tr><th>Nome</th><th>Slug</th><th>Morada</th><th>Telefone</th><th>Criado em</th></tr></thead>
                   <tbody>
                     {gyms.map(g => (
                       <tr key={g.id}>
                         <td><strong>{g.nome}</strong></td>
                         <td><code style={{fontSize:11,color:C.t3}}>{g.slug}</code></td>
+                        <td>{g.morada||"—"}</td>
+                        <td>{g.telefone||"—"}</td>
                         <td>{g.criado_em ? new Date(g.criado_em).toLocaleDateString("pt-AO") : "—"}</td>
                       </tr>
                     ))}
@@ -509,6 +511,12 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
               <div className="form-grid">
                 <label className="full">Nome do ginásio<span className="required"> *</span>
                   <input className="input" required maxLength={120} value={form.nome||""} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Ex.: FitCore Luanda"/>
+                </label>
+                <label>Morada
+                  <input className="input" maxLength={200} value={form.morada||""} onChange={e=>setForm(f=>({...f,morada:e.target.value}))} placeholder="Rua, cidade"/>
+                </label>
+                <label>Telefone
+                  <input className="input" maxLength={30} value={form.telefone||""} onChange={e=>setForm(f=>({...f,telefone:e.target.value}))} placeholder="+244 …"/>
                 </label>
               </div>
               <div className="modal-actions">
