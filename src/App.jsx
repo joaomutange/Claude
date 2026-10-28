@@ -614,35 +614,24 @@ export default function App() {
   async function loadUserData(user) {
     setDataLoading(true); setAuthError("");
     try {
-      // Verificar superadmin em paralelo com os ginásios
-      const [saResult, memberResult] = await Promise.all([
-        supabase.from("superadmins").select("*").eq("utilizador_id", user.id).eq("ativo", true).maybeSingle(),
+      // Verificar superadmin via função RPC (SECURITY DEFINER, ignora RLS)
+      const [saFnResult, memberResult] = await Promise.all([
+        supabase.rpc("is_superadmin"),
         supabase.from("membros_ginasio").select("*, ginasios(*)").eq("utilizador_id", user.id).eq("ativo", true),
       ]);
 
-      // Superadmin?
-      if (saResult.error) {
-        console.warn("[FitCore] Erro ao verificar superadmin:", saResult.error.message, saResult.error.code);
-      }
-      // Verificar por dados ou por email como fallback
-      const isSA = !!saResult.data || (!saResult.error && user.email === saResult.data?.email)
-        || (saResult.data === null && !saResult.error && false); // placeholder
-      const saData = saResult.data || (user.email ? { nome: user.email.split("@")[0], email: user.email, utilizador_id: user.id, ativo: true } : null);
-
-      // Tentar via email se a query por id não retornou nada
-      let resolvedSA = saResult.data;
-      if (!resolvedSA && !saResult.error) {
-        // Pode ser que o utilizador_id não coincida — tentar por email
-        const { data: saByEmail } = await supabase
-          .from("superadmins").select("*").eq("email", user.email).eq("ativo", true).maybeSingle();
-        if (saByEmail) resolvedSA = saByEmail;
+      if (saFnResult.error) {
+        console.warn("[FitCore] Erro is_superadmin():", saFnResult.error.message);
       }
 
-      if (resolvedSA) {
-        setSuperadmin(resolvedSA);
+      if (saFnResult.data === true) {
+        // Buscar os dados do superadmin
+        const { data: saData } = await supabase
+          .from("superadmins").select("*").eq("email", user.email).maybeSingle();
+        setSuperadmin(saData || { nome: user.email, email: user.email, utilizador_id: user.id, ativo: true });
         setIsSuperadmin(true);
         setDataLoading(false);
-        return; // superadmin não precisa de ginásio
+        return;
       }
 
       // Utilizador normal — verificar ginásios
