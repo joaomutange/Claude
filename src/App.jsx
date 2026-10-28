@@ -666,6 +666,7 @@ export default function App() {
     const g = gyms.find(x => x.id === gymId);
     if (!g) return;
     setGym(g);
+    setMembership(null); // limpar membership anterior para evitar flash de dados errados
     loadMembershipForGym(session?.user?.id, gymId);
   };
 
