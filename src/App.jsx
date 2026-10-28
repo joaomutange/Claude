@@ -621,6 +621,9 @@ export default function App() {
       ]);
 
       // Superadmin?
+      if (saResult.error) {
+        console.warn("[FitCore] Erro ao verificar superadmin:", saResult.error.message, saResult.error.code);
+      }
       if (saResult.data) {
         setSuperadmin(saResult.data);
         setIsSuperadmin(true);
