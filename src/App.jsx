@@ -1,263 +1,285 @@
 import { useState, useEffect, useRef } from "react";
+import "./styles.css";
 
 // ═══════════════════════════════════════════════════════
-// DESIGN SYSTEM
+// TOKENS (runtime, para SVG e estilos inline)
 // ═══════════════════════════════════════════════════════
-const DS = {
-  bg0:"#080B0D", bg1:"#0D1114", card:"#12171B", cardH:"#181E22",
+const C = {
+  bg:"#080B0D", bg1:"#0D1114", card:"#111518", cardH:"#171C20",
   gold:"#C9973E", goldL:"#E1B75F", goldD:"#8F6424",
-  t1:"#F5F5F2", t2:"#A5A9AC", t3:"#6F7579",
-  ok:"#4CAF72", warn:"#E0A43B", err:"#D65C5C",
-  border:"#1E2529", borderG:"#C9973E44",
+  t1:"#F5F5F2", t2:"#A5A9AC", t3:"#5A6066",
+  ok:"#4CAF72", warn:"#E0A43B", err:"#D65C5C", info:"#4A9ECC",
+  border:"#1E2529",
 };
 
-const planoCor = { Elite:DS.gold, Premium:DS.ok, Standard:DS.t2 };
+// ═══════════════════════════════════════════════════════
+// DADOS
+// ═══════════════════════════════════════════════════════
+const UNIDADES = [
+  { id:"U1", nome:"Luanda Centro",  cidade:"Luanda",     alunos:248, receita:"4.2M", presenca:87 },
+  { id:"U2", nome:"Talatona",       cidade:"Luanda Sul",  alunos:184, receita:"3.1M", presenca:79 },
+  { id:"U3", nome:"Viana",          cidade:"Viana",       alunos:132, receita:"2.4M", presenca:72 },
+  { id:"U4", nome:"Benguela",       cidade:"Benguela",    alunos:96,  receita:"1.8M", presenca:68 },
+];
+
+const ANIVERSARIOS = [
+  { nome:"Ana Moreira",   email:"ana@fitcore.ao",    dob:"1995-09-07", plano:"Premium"  },
+  { nome:"Carlos Lopes",  email:"carlos@fitcore.ao", dob:"1988-09-07", plano:"Standard" },
+  { nome:"Lena Cardoso",  email:"lena@fitcore.ao",   dob:"1992-09-07", plano:"Standard" },
+];
+
+const BASE_CREDS = {
+  "admin@fitcore.ao":   { senha:"admin123",   perfil:"gestor",  nome:"Miguel Guerreiro",    unidade:"U1", plano:null,       avatar:"MG" },
+  "trainer@fitcore.ao": { senha:"trainer123", perfil:"trainer", nome:"Prof. Mário Santos",  unidade:"U1", plano:null,       avatar:"MS" },
+  "ana@fitcore.ao":     { senha:"ana123",     perfil:"aluno",   nome:"Ana Moreira",         unidade:"U1", plano:"Premium",  avatar:"AM", aguaHoje:1.8, treinos:24, codigo:"FC1-AM2024" },
+  "bruno@fitcore.ao":   { senha:"bruno123",   perfil:"aluno",   nome:"Bruno Silva",         unidade:"U1", plano:"Elite",    avatar:"BS", aguaHoje:2.9, treinos:38, codigo:"FC1-BS2024" },
+  "carlos@fitcore.ao":  { senha:"carlos123",  perfil:"aluno",   nome:"Carlos Lopes",        unidade:"U1", plano:"Standard", avatar:"CL", aguaHoje:0.8, treinos:12, codigo:"FC1-CL2024" },
+};
+
+const initMensalidades = [
+  { id:"M001", nome:"Ana Moreira",  email:"ana@fitcore.ao",    plano:"Premium",  valor:18000, vencimento:"2026-08-05", pago:true,  dataPag:"2026-08-04", metodo:"Transferência" },
+  { id:"M002", nome:"Carlos Lopes", email:"carlos@fitcore.ao", plano:"Standard", valor:12000, vencimento:"2026-08-10", pago:false, dataPag:null, metodo:null },
+  { id:"M003", nome:"Fátima Neto",  email:"fatima@fitcore.ao", plano:"Premium",  valor:18000, vencimento:"2026-07-05", pago:false, dataPag:null, metodo:null },
+  { id:"M004", nome:"Bruno Silva",  email:"bruno@fitcore.ao",  plano:"Elite",    valor:28000, vencimento:"2026-08-01", pago:true,  dataPag:"2026-08-01", metodo:"Multicaixa" },
+  { id:"M005", nome:"Lena Cardoso", email:"lena@fitcore.ao",   plano:"Standard", valor:12000, vencimento:"2026-06-10", pago:false, dataPag:null, metodo:null },
+];
+
+const initPosts = [
+  { id:1, autor:"Bruno Silva",  avatar:"BS", tipo:"conquista", conteudo:"Novo recorde pessoal! 120kg no supino hoje 💪", hora:"08:42", likes:14, comentarios:["Incrível! 🔥"],  unidade:"U1" },
+  { id:2, autor:"FitCore",      avatar:"FC", tipo:"academia",  conteudo:"🏋️ Aula de HIIT às 18h com o professor Mário. Venham todos!", hora:"09:15", likes:31, comentarios:[], unidade:"U1" },
+  { id:3, autor:"Ana Moreira",  avatar:"AM", tipo:"progresso", conteudo:"30 dias consecutivos de treino! Obrigada FitCore 🙌",          hora:"10:03", likes:22, comentarios:["Incrível!"], unidade:"U1" },
+];
+
+const SEMANA = [
+  { dia:"Seg", foco:"Peito & Tríceps", icon:"🏋️", exercicios:[
+    { nome:"Supino plano",    maquina:"Banco + barra",   series:4, reps:"10–12", descanso:"90s", musculo:"Peito",    dica:"Omoplatas retraídas, pés no chão." },
+    { nome:"Crucifixo",       maquina:"Banco + halteres",series:3, reps:"12–15", descanso:"60s", musculo:"Peito",    dica:"Arco suave, sinta o alongamento." },
+    { nome:"Tríceps polia",   maquina:"Polia alta",      series:3, reps:"12–15", descanso:"60s", musculo:"Tríceps",  dica:"Cotovelos junto ao corpo." },
+  ]},
+  { dia:"Ter", foco:"Costas & Bíceps", icon:"💪", exercicios:[
+    { nome:"Lat Pulldown",    maquina:"Máquina polia",   series:4, reps:"10–12", descanso:"90s", musculo:"Costas",   dica:"Puxe até ao queixo." },
+    { nome:"Remada curvada",  maquina:"Barra olímpica",  series:4, reps:"10–12", descanso:"90s", musculo:"Costas",   dica:"Tronco a 45°." },
+    { nome:"Rosca direta",    maquina:"Halteres livres", series:3, reps:"12–15", descanso:"60s", musculo:"Bíceps",   dica:"Gire o pulso no topo." },
+  ]},
+  { dia:"Qua", foco:"Pernas", icon:"🦵", exercicios:[
+    { nome:"Agachamento",     maquina:"Rack + barra",    series:4, reps:"10–12", descanso:"120s",musculo:"Quadricípites", dica:"Coxas paralelas ao chão." },
+    { nome:"Leg press",       maquina:"Máquina 45°",     series:3, reps:"12–15", descanso:"90s", musculo:"Pernas",   dica:"Não bloqueie os joelhos." },
+    { nome:"Extensão",        maquina:"Máquina extensão",series:3, reps:"15",    descanso:"60s", musculo:"Quadricípites", dica:"Contraia no topo." },
+  ]},
+  { dia:"Qui", foco:"Ombros & Core", icon:"🔄", exercicios:[
+    { nome:"Desenvolvimento", maquina:"Banco + halteres",series:4, reps:"10–12", descanso:"90s", musculo:"Deltóide", dica:"Não arquear as costas." },
+    { nome:"Elevação lateral",maquina:"Halteres livres", series:3, reps:"15",    descanso:"60s", musculo:"Deltóide", dica:"Até ao nível dos ombros." },
+    { nome:"Prancha",         maquina:"Tapete",          series:3, reps:"30–45s",descanso:"45s", musculo:"Core",     dica:"Abdómen contraído." },
+  ]},
+  { dia:"Sex", foco:"Full Body", icon:"⚡", exercicios:[
+    { nome:"Supino inclinado",maquina:"Banco inclinado", series:3, reps:"10–12", descanso:"90s", musculo:"Peito sup.", dica:"Banco a 30–45°." },
+    { nome:"Agachamento sumô",maquina:"Haltere",         series:3, reps:"12",    descanso:"90s", musculo:"Adutores",  dica:"Pés apontados para fora." },
+    { nome:"Rosca martelo",   maquina:"Halteres",        series:3, reps:"12",    descanso:"60s", musculo:"Bíceps",    dica:"Polegar para cima." },
+  ]},
+  { dia:"Sáb", foco:"Cardio HIIT", icon:"🏃", exercicios:[] },
+  { dia:"Dom", foco:"Descanso",    icon:"😴", exercicios:[] },
+];
+
+const EXERCICIOS = [
+  { nome:"Supino plano",  grupo:"Peito",  series:[{s:1,c:80,r:10},{s:2,c:82.5,r:10},{s:3,c:85,r:10},{s:4,c:87.5,r:8},{s:5,c:90,r:8},{s:6,c:92.5,r:8}] },
+  { nome:"Agachamento",   grupo:"Pernas", series:[{s:1,c:100,r:10},{s:2,c:105,r:10},{s:3,c:110,r:8},{s:4,c:112.5,r:8},{s:5,c:115,r:8},{s:6,c:120,r:6}] },
+  { nome:"Remada",        grupo:"Costas", series:[{s:1,c:70,r:12},{s:2,c:72.5,r:12},{s:3,c:75,r:10},{s:4,c:77.5,r:10},{s:5,c:80,r:10},{s:6,c:82.5,r:8}] },
+];
+
+const MOTIVOS = [
+  { icon:"🤖", t:"Planos gerados por IA",      d:"Treino e nutrição personalizados automaticamente com base nos seus objectivos reais." },
+  { icon:"📊", t:"Acompanhamento total",        d:"Progressão de peso, cargas, presença e hidratação num só lugar." },
+  { icon:"💧", t:"Lembretes inteligentes",      d:"Hidratação calculada para o seu plano, enviada ao longo do dia." },
+  { icon:"👥", t:"Comunidade activa",           d:"Partilhe conquistas e motivação com outros membros FitCore." },
+  { icon:"📱", t:"Check-in com QR Code",        d:"Entrada rápida e digital com o seu código de membro pessoal." },
+];
+
+const PLANOS = [
+  { nome:"Standard", preco:"KZ 12 000", cor:C.t2,   items:["Acesso ilimitado","Plano de treino IA","Lembretes de água","Comunidade","Check-in digital"] },
+  { nome:"Premium",  preco:"KZ 18 000", cor:C.gold, destaque:true, items:["Tudo do Standard","Plano nutricional","Relatórios mensais","Acompanhamento IA","Suporte prioritário"] },
+  { nome:"Elite",    preco:"KZ 28 000", cor:C.goldL,items:["Tudo do Premium","Personal Trainer","Análise avançada","Todas as unidades","Plano de competição"] },
+];
+
 const aguaPorPlano = { Elite:3.5, Premium:3.0, Standard:2.5 };
+const planoCor     = { Elite:C.goldL, Premium:C.gold, Standard:C.t2 };
 
-function formatKz(v){ return "KZ "+v.toLocaleString("pt-AO"); }
-function now(){ return new Date().toLocaleTimeString("pt-AO",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
-function hhmm(){ return new Date().toLocaleTimeString("pt-AO",{hour:"2-digit",minute:"2-digit"}); }
-function today(){ return new Date().toLocaleDateString("pt-AO",{weekday:"long",day:"2-digit",month:"long"}); }
-function diasAtraso(v){ const h=new Date();h.setHours(0,0,0,0);const d=new Date(v);d.setHours(0,0,0,0);return Math.floor((h-d)/86400000); }
+// ═══════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════
+const fmt      = v  => "KZ " + Number(v).toLocaleString("pt-AO");
+const nowTime  = () => new Date().toLocaleTimeString("pt-AO", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+const hhmm     = () => new Date().toLocaleTimeString("pt-AO", { hour:"2-digit", minute:"2-digit" });
+const todayStr = () => new Date().toLocaleDateString("pt-AO", { weekday:"long", day:"2-digit", month:"long" });
+const diasAt   = v  => { const h=new Date();h.setHours(0,0,0,0);const d=new Date(v);d.setHours(0,0,0,0);return Math.max(0,Math.floor((h-d)/86400000)); };
+const initials = n  => n.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase();
 
-// ── ATOMS ──────────────────────────────────────────────
-function GoldLine(){ return <div style={{height:1,background:`linear-gradient(90deg,transparent,${DS.gold}88,transparent)`,margin:"10px 0"}}/>; }
+// ═══════════════════════════════════════════════════════
+// ATOMS
+// ═══════════════════════════════════════════════════════
 
-function Badge({children,cor}){
-  return <span style={{background:(cor||DS.gold)+"22",color:cor||DS.gold,fontSize:10,padding:"2px 9px",borderRadius:20,fontWeight:600,letterSpacing:.3,border:`1px solid ${(cor||DS.gold)}33`}}>{children}</span>;
-}
-
-function Chip({label,valor,cor}){
-  return(
-    <div style={{background:DS.cardH,borderRadius:8,padding:"8px 10px",border:`0.5px solid ${DS.border}`}}>
-      <p style={{margin:"0 0 2px",fontSize:9,color:DS.t3,textTransform:"uppercase",letterSpacing:.5}}>{label}</p>
-      <p style={{margin:0,fontSize:13,fontWeight:600,color:cor||DS.t1}}>{valor}</p>
+function Av({ nome, foto, size=36 }) {
+  const fs = Math.round(size * 0.32);
+  return (
+    <div className="av" style={{ width:size, height:size, fontSize:fs }}>
+      {foto ? <img src={foto} alt={nome}/> : initials(nome||"?")}
     </div>
   );
 }
 
-function Av({nome,foto,size=38}){
-  if(foto) return <img src={foto} alt={nome} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:`1.5px solid ${DS.borderG}`}}/>;
-  return(
-    <div style={{width:size,height:size,borderRadius:"50%",background:DS.cardH,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*.3,color:DS.gold,flexShrink:0,border:`1.5px solid ${DS.gold}44`}}>
-      {nome.split(" ").map(n=>n[0]).join("").slice(0,2)}
+function Badge({ children, cor=C.gold }) {
+  return (
+    <span className="badge" style={{
+      background: cor + "20",
+      color: cor,
+      border: `1px solid ${cor}35`,
+    }}>{children}</span>
+  );
+}
+
+function Chip({ label, valor, cor }) {
+  return (
+    <div className="chip">
+      <div className="chip-label">{label}</div>
+      <div className="chip-value" style={{ color: cor || C.t1 }}>{valor}</div>
     </div>
   );
 }
 
-function GoldBar({valor,max=100,height=5}){
-  const pct=Math.min((valor/max)*100,100);
-  const cor=pct>=80?DS.ok:pct>=50?DS.gold:DS.err;
-  return(
-    <div style={{background:DS.bg0,borderRadius:4,height,overflow:"hidden"}}>
-      <div style={{width:`${pct}%`,height:"100%",background:pct>=80?`linear-gradient(90deg,${DS.ok},${DS.goldL})`:`linear-gradient(90deg,${cor}88,${cor})`,borderRadius:4,transition:"width .5s"}}/>
+function Btn({ children, onClick, variant="gold", full, small, disabled }) {
+  return (
+    <button
+      className={`btn btn-${variant}${full?" btn-full":""}${small?" btn-sm":""}`}
+      onClick={onClick}
+      disabled={disabled}
+    >{children}</button>
+  );
+}
+
+function GoldLine() {
+  return <div className="gold-line"/>;
+}
+
+function Bar({ valor, max=100, height=5, cor }) {
+  const pct  = Math.min((valor / max) * 100, 100);
+  const fill = cor || (pct >= 80 ? C.ok : pct >= 50 ? C.gold : C.err);
+  return (
+    <div className="bar-track" style={{ height }}>
+      <div className="bar-fill" style={{ width:`${pct}%`, height:"100%", background:`linear-gradient(90deg,${fill}99,${fill})` }}/>
     </div>
   );
 }
 
-function MiniBar({valor,max,cor}){
-  return <div style={{background:DS.bg0,borderRadius:3,height:4,flex:1}}><div style={{width:`${Math.min((valor/max)*100,100)}%`,background:cor||DS.gold,height:"100%",borderRadius:3}}/></div>;
-}
-
-function Btn({children,onClick,variant="gold",full,small,disabled}){
-  const st={
-    gold:{background:`linear-gradient(135deg,${DS.gold},${DS.goldL})`,color:DS.bg0,border:"none"},
-    outline:{background:"transparent",color:DS.gold,border:`1px solid ${DS.gold}66`},
-    ghost:{background:DS.cardH,color:DS.t2,border:`0.5px solid ${DS.border}`},
-    danger:{background:DS.err+"22",color:DS.err,border:`0.5px solid ${DS.err}66`},
-    success:{background:DS.ok+"22",color:DS.ok,border:`0.5px solid ${DS.ok}44`},
-  }[variant]||{};
-  return(
-    <button onClick={onClick} disabled={disabled} style={{...st,width:full?"100%":"auto",padding:small?"5px 12px":"9px 16px",borderRadius:9,fontSize:small?11:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,letterSpacing:.2,transition:"opacity .2s"}}>
-      {children}
-    </button>
-  );
-}
-
-// ── QR CODE ────────────────────────────────────────────
-function QRCode({id,size=140}){
-  const seed=id.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
-  const cells=21, cell=size/cells;
-  const bits=[];
-  for(let r=0;r<cells;r++){
-    bits[r]=[];
-    for(let c2=0;c2<cells;c2++){
-      if((r<8&&c2<8)||(r<8&&c2>=cells-8)||(r>=cells-8&&c2<8)){bits[r][c2]=2;continue;}
-      if(r===6||c2===6){bits[r][c2]=(r+c2)%2===0?1:0;continue;}
-      bits[r][c2]=(seed*(r*31+c2*17+7))%100<45?1:0;
+// ── QR Code SVG ────────────────────────────────────────
+function QRCode({ id, size=150 }) {
+  const seed  = id.split("").reduce((a,c) => a + c.charCodeAt(0), 0);
+  const cells = 21, cell = size / cells;
+  const bits  = [];
+  for (let r = 0; r < cells; r++) {
+    bits[r] = [];
+    for (let c2 = 0; c2 < cells; c2++) {
+      if ((r<8&&c2<8)||(r<8&&c2>=cells-8)||(r>=cells-8&&c2<8)) { bits[r][c2]=2; continue; }
+      if (r===6||c2===6) { bits[r][c2]=(r+c2)%2===0?1:0; continue; }
+      bits[r][c2] = (seed*(r*31+c2*17+7))%100 < 45 ? 1 : 0;
     }
   }
-  const rects=[];
-  for(let r=0;r<cells;r++) for(let c2=0;c2<cells;c2++) if(bits[r][c2]===1) rects.push(<rect key={`${r}-${c2}`} x={c2*cell} y={r*cell} width={cell} height={cell} fill={DS.gold}/>);
-  const F=({x,y})=>(
-    <g><rect x={x} y={y} width={cell*7} height={cell*7} fill={DS.gold}/><rect x={x+cell} y={y+cell} width={cell*5} height={cell*5} fill={DS.bg0}/><rect x={x+cell*2} y={y+cell*2} width={cell*3} height={cell*3} fill={DS.gold}/></g>
+  const rects = [];
+  for (let r=0;r<cells;r++) for (let c2=0;c2<cells;c2++) if (bits[r][c2]===1) rects.push(<rect key={`${r}-${c2}`} x={c2*cell} y={r*cell} width={cell} height={cell} fill={C.gold}/>);
+  const F = ({ x, y }) => (
+    <g>
+      <rect x={x} y={y} width={cell*7} height={cell*7} fill={C.gold}/>
+      <rect x={x+cell} y={y+cell} width={cell*5} height={cell*5} fill={C.bg}/>
+      <rect x={x+cell*2} y={y+cell*2} width={cell*3} height={cell*3} fill={C.gold}/>
+    </g>
   );
-  return(
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{display:"block"}}>
-      <rect width={size} height={size} fill={DS.bg0}/>
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display:"block" }}>
+      <rect width={size} height={size} fill={C.bg}/>
       {rects}
       <F x={0} y={0}/><F x={(cells-7)*cell} y={0}/><F x={0} y={(cells-7)*cell}/>
     </svg>
   );
 }
 
-// ═══════════════════════════════════════════════════════
-// DADOS
-// ═══════════════════════════════════════════════════════
-const UNIDADES=[
-  {id:"U1",nome:"FitCore Luanda Centro",cidade:"Luanda",     alunos:248,receita:"4.2M",presenca:87},
-  {id:"U2",nome:"FitCore Talatona",     cidade:"Luanda Sul", alunos:184,receita:"3.1M",presenca:79},
-  {id:"U3",nome:"FitCore Viana",        cidade:"Viana",      alunos:132,receita:"2.4M",presenca:72},
-  {id:"U4",nome:"FitCore Benguela",     cidade:"Benguela",   alunos:96, receita:"1.8M",presenca:68},
-];
-
-const ANIVERSARIOS=[
-  {nome:"Ana Moreira",  email:"ana@fitcore.ao",  dob:"1995-09-07",plano:"Premium", avatar:"AM"},
-  {nome:"Carlos Lopes", email:"carlos@fitcore.ao",dob:"1988-09-07",plano:"Standard",avatar:"CL"},
-  {nome:"Lena Cardoso", email:"lena@fitcore.ao",  dob:"1992-09-07",plano:"Standard",avatar:"LC"},
-];
-
-const BASE_CREDS={
-  "admin@fitcore.ao":   {senha:"admin123",  perfil:"gestor",  nome:"Gestor Geral",       unidade:"U1",plano:null,      avatar:"GG"},
-  "trainer@fitcore.ao": {senha:"trainer123",perfil:"trainer", nome:"Prof. Mário Santos", unidade:"U1",plano:null,      avatar:"MS"},
-  "ana@fitcore.ao":     {senha:"ana123",    perfil:"aluno",   nome:"Ana Moreira",        unidade:"U1",plano:"Premium", avatar:"AM",aguaHoje:1.8,treinos:24,ausencias:0,status:"Ativo",codigo:"FC1-AM2024"},
-  "bruno@fitcore.ao":   {senha:"bruno123",  perfil:"aluno",   nome:"Bruno Silva",        unidade:"U1",plano:"Elite",   avatar:"BS",aguaHoje:2.9,treinos:38,ausencias:0,status:"Ativo",codigo:"FC1-BS2024"},
-  "carlos@fitcore.ao":  {senha:"carlos123", perfil:"aluno",   nome:"Carlos Lopes",       unidade:"U1",plano:"Standard",avatar:"CL",aguaHoje:0.8,treinos:12,ausencias:2,status:"Ativo",codigo:"FC1-CL2024"},
-};
-
-const initMensalidades=[
-  {id:"M001",nome:"Ana Moreira",  email:"ana@fitcore.ao",  plano:"Premium", valor:18000,vencimento:"2026-08-05",pago:true, dataPag:"2026-08-04",metodo:"Transferência"},
-  {id:"M002",nome:"Carlos Lopes", email:"carlos@fitcore.ao",plano:"Standard",valor:12000,vencimento:"2026-08-10",pago:false,dataPag:null,metodo:null},
-  {id:"M003",nome:"Fátima Neto",  email:"fatima@fitcore.ao",plano:"Premium", valor:18000,vencimento:"2026-07-05",pago:false,dataPag:null,metodo:null},
-  {id:"M004",nome:"Bruno Silva",  email:"bruno@fitcore.ao", plano:"Elite",   valor:28000,vencimento:"2026-08-01",pago:true, dataPag:"2026-08-01",metodo:"Multicaixa"},
-  {id:"M005",nome:"Lena Cardoso", email:"lena@fitcore.ao",  plano:"Standard",valor:12000,vencimento:"2026-06-10",pago:false,dataPag:null,metodo:null},
-];
-
-const initPosts=[
-  {id:1,autor:"Bruno Silva",avatar:"BS",tipo:"conquista",conteudo:"Novo recorde pessoal! 120kg no supino hoje 💪",hora:"08:42",likes:14,comentarios:["Incrível! 🔥"],unidade:"U1"},
-  {id:2,autor:"FitCore",avatar:"FC",tipo:"academia",conteudo:"🏋️ Aula de HIIT às 18h com o professor Mário. Venham todos!",hora:"09:15",likes:31,comentarios:[],unidade:"U1"},
-  {id:3,autor:"Ana Moreira",avatar:"AM",tipo:"progresso",conteudo:"30 dias consecutivos de treino! Obrigada FitCore 🙌",hora:"10:03",likes:22,comentarios:["Incrível!"],unidade:"U1"},
-];
-
-const MOTIVOS=[
-  {icon:"🤖",t:"Planos gerados por IA",d:"Treino e nutrição personalizados automaticamente com base nos seus objectivos reais."},
-  {icon:"📊",t:"Acompanhamento total",d:"Veja progressão de peso, cargas, presença e hidratação num só lugar."},
-  {icon:"💧",t:"Lembretes inteligentes",d:"Hidratação calculada para o seu plano, enviada ao longo do dia."},
-  {icon:"👥",t:"Comunidade activa",d:"Partilhe conquistas e motivação com outros membros FitCore."},
-  {icon:"📱",t:"Check-in com QR Code",d:"Entrada rápida e digital com o seu código de membro pessoal."},
-];
-
-const PLANOS_DISPLAY=[
-  {nome:"Standard",preco:"KZ 12 000",cor:DS.t2,  items:["Acesso ilimitado","Plano de treino IA","Lembretes de água","Comunidade","Check-in digital"]},
-  {nome:"Premium", preco:"KZ 18 000",cor:DS.gold,destaque:true,items:["Tudo do Standard","Plano nutricional","Relatórios mensais","Acompanhamento IA","Suporte prioritário"]},
-  {nome:"Elite",   preco:"KZ 28 000",cor:DS.goldL,items:["Tudo do Premium","Personal Trainer","Análise avançada","Todas as unidades","Plano de competição"]},
-];
-
-const EXERCICIOS=[
-  {nome:"Supino plano",grupo:"Peito",series:[{s:1,c:80,r:10},{s:2,c:82.5,r:10},{s:3,c:85,r:10},{s:4,c:87.5,r:8},{s:5,c:90,r:8},{s:6,c:92.5,r:8}]},
-  {nome:"Agachamento",grupo:"Pernas",series:[{s:1,c:100,r:10},{s:2,c:105,r:10},{s:3,c:110,r:8},{s:4,c:112.5,r:8},{s:5,c:115,r:8},{s:6,c:120,r:6}]},
-  {nome:"Remada",grupo:"Costas",series:[{s:1,c:70,r:12},{s:2,c:72.5,r:12},{s:3,c:75,r:10},{s:4,c:77.5,r:10},{s:5,c:80,r:10},{s:6,c:82.5,r:8}]},
-];
-
-const SEMANA=[
-  {dia:"Seg",foco:"Peito & Tríceps",icon:"🏋️",exercicios:[
-    {nome:"Supino plano",maquina:"Banco + barra",series:4,reps:"10–12",descanso:"90s",musculo:"Peito",dica:"Omoplatas retraídas, pés no chão."},
-    {nome:"Crucifixo",maquina:"Banco + halteres",series:3,reps:"12–15",descanso:"60s",musculo:"Peito",dica:"Arco suave, sinta o alongamento."},
-    {nome:"Tríceps polia",maquina:"Polia alta",series:3,reps:"12–15",descanso:"60s",musculo:"Tríceps",dica:"Cotovelos junto ao corpo."},
-  ]},
-  {dia:"Ter",foco:"Costas & Bíceps",icon:"💪",exercicios:[
-    {nome:"Lat Pulldown",maquina:"Máquina polia",series:4,reps:"10–12",descanso:"90s",musculo:"Costas",dica:"Puxe até ao queixo."},
-    {nome:"Remada curvada",maquina:"Barra olímpica",series:4,reps:"10–12",descanso:"90s",musculo:"Costas",dica:"Tronco a 45°."},
-    {nome:"Rosca direta",maquina:"Halteres livres",series:3,reps:"12–15",descanso:"60s",musculo:"Bíceps",dica:"Gire o pulso no topo."},
-  ]},
-  {dia:"Qua",foco:"Pernas",icon:"🦵",exercicios:[
-    {nome:"Agachamento",maquina:"Rack + barra",series:4,reps:"10–12",descanso:"120s",musculo:"Quadricípites",dica:"Coxas paralelas ao chão."},
-    {nome:"Leg press",maquina:"Máquina 45°",series:3,reps:"12–15",descanso:"90s",musculo:"Pernas",dica:"Não bloqueie os joelhos."},
-    {nome:"Extensão",maquina:"Máquina extensão",series:3,reps:"15",descanso:"60s",musculo:"Quadricípites",dica:"Contraia no topo."},
-  ]},
-  {dia:"Qui",foco:"Ombros & Core",icon:"🔄",exercicios:[
-    {nome:"Desenvolvimento",maquina:"Banco + halteres",series:4,reps:"10–12",descanso:"90s",musculo:"Deltóide",dica:"Não arquear as costas."},
-    {nome:"Elevação lateral",maquina:"Halteres livres",series:3,reps:"15",descanso:"60s",musculo:"Deltóide lat.",dica:"Até ao nível dos ombros."},
-    {nome:"Prancha",maquina:"Tapete",series:3,reps:"30–45s",descanso:"45s",musculo:"Core",dica:"Abdómen contraído."},
-  ]},
-  {dia:"Sex",foco:"Full Body",icon:"⚡",exercicios:[
-    {nome:"Supino inclinado",maquina:"Banco inclinado",series:3,reps:"10–12",descanso:"90s",musculo:"Peito sup.",dica:"Banco a 30–45°."},
-    {nome:"Agachamento sumô",maquina:"Haltere",series:3,reps:"12",descanso:"90s",musculo:"Adutores",dica:"Pés apontados para fora."},
-    {nome:"Rosca martelo",maquina:"Halteres",series:3,reps:"12",descanso:"60s",musculo:"Bíceps",dica:"Polegar para cima."},
-  ]},
-  {dia:"Sáb",foco:"Cardio HIIT",icon:"🏃",exercicios:[]},
-  {dia:"Dom",foco:"Descanso",icon:"😴",exercicios:[]},
-];
-
-// ═══════════════════════════════════════════════════════
-// COMPONENTES
-// ═══════════════════════════════════════════════════════
-
-function LineChart({series}){
-  const w=280,h=70,pad=10;
-  const maxC=Math.max(...series.map(s=>s.c)), minC=Math.min(...series.map(s=>s.c))-5;
-  const pts=series.map((s,i)=>({
-    x:pad+(i/(series.length-1))*(w-pad*2),
-    y:h-pad-(((s.c-minC)/(maxC-minC+2))*(h-pad*2))
+// ── Line Chart ─────────────────────────────────────────
+function LineChart({ series }) {
+  const w=300, h=80, pad=12;
+  const maxC = Math.max(...series.map(s=>s.c));
+  const minC = Math.min(...series.map(s=>s.c)) - 5;
+  const pts  = series.map((s,i) => ({
+    x: pad + (i/(series.length-1))*(w-pad*2),
+    y: h - pad - (((s.c-minC)/(maxC-minC+2))*(h-pad*2)),
   }));
-  return(
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{display:"block"}}>
-      {pts.slice(0,-1).map((p,i)=>(
-        <line key={i} x1={p.x} y1={p.y} x2={pts[i+1].x} y2={pts[i+1].y} stroke={DS.gold} strokeWidth="2" strokeLinecap="round"/>
-      ))}
-      {pts.map((p,i)=>(
+  const path = pts.map((p,i) => `${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display:"block" }}>
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={C.gold} stopOpacity=".25"/>
+          <stop offset="100%" stopColor={C.gold} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d={`${path} L${pts[pts.length-1].x},${h} L${pts[0].x},${h} Z`} fill="url(#lg)"/>
+      <path d={path} fill="none" stroke={C.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pts.map((p,i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="4" fill={DS.gold}/>
-          <text x={p.x} y={p.y-7} textAnchor="middle" fontSize="8" fill={DS.gold}>{series[i].c}</text>
-          <text x={p.x} y={h-1} textAnchor="middle" fontSize="7" fill={DS.t3}>S{series[i].s}</text>
+          <circle cx={p.x} cy={p.y} r="3.5" fill={C.gold}/>
+          <text x={p.x} y={p.y-7} textAnchor="middle" fontSize="8" fill={C.gold}>{series[i].c}</text>
+          <text x={p.x} y={h-1}   textAnchor="middle" fontSize="7" fill={C.t3}>S{series[i].s}</text>
         </g>
       ))}
     </svg>
   );
 }
 
-// ── NOTA DE COBRANÇA ──────────────────────────────────
-function NotaCobranca({m,onClose,enviarNotifAluno}){
-  const atraso=diasAtraso(m.vencimento);
-  const multa=atraso>0?Math.round(m.valor*.05):0;
-  const total=m.valor+multa;
-  const ref="FTC-"+m.id+"-2026";
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:16}}>
-      <div style={{background:DS.card,border:`1px solid ${DS.border}`,borderRadius:16,padding:"1.5rem",maxWidth:400,width:"100%",maxHeight:"88vh",overflowY:"auto"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:34,height:34,borderRadius:8,background:`linear-gradient(135deg,${DS.goldD},${DS.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🏋️</div>
-            <div><p style={{margin:0,fontWeight:700,fontSize:13,color:DS.t1}}>FitCore</p><p style={{margin:0,fontSize:9,color:DS.t3}}>Nota de cobrança</p></div>
+// ═══════════════════════════════════════════════════════
+// NOTA DE COBRANÇA
+// ═══════════════════════════════════════════════════════
+function NotaCobranca({ m, onClose, enviarNotifAluno }) {
+  const atraso = diasAt(m.vencimento);
+  const multa  = atraso > 0 ? Math.round(m.valor * .05) : 0;
+  const total  = m.valor + multa;
+  const ref    = `FTC-${m.id}-2026`;
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:16 }}>
+      <div className="card" style={{ maxWidth:400,width:"100%",maxHeight:"88vh",overflowY:"auto",border:`1px solid ${C.border}` }}>
+        <div className="flex justify-between items-center mb-12">
+          <div className="flex items-center gap-10">
+            <div style={{ width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${C.goldD},${C.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>🏋️</div>
+            <div>
+              <div style={{ fontWeight:800,fontSize:14,color:C.t1 }}>FitCore Enterprise</div>
+              <div style={{ fontSize:10,color:C.t3 }}>Nota de Cobrança</div>
+            </div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:DS.t3}}>✕</button>
+          <button onClick={onClose} style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.t3 }}>✕</button>
         </div>
         <GoldLine/>
-        <div style={{background:DS.cardH,borderRadius:8,padding:"6px 12px",marginBottom:10,display:"flex",justifyContent:"space-between"}}>
-          <span style={{fontSize:10,color:DS.t3}}>Ref.</span>
-          <span style={{fontSize:11,color:DS.gold,fontWeight:700,fontFamily:"monospace"}}>{ref}</span>
+        <div style={{ background:C.cardH,borderRadius:8,padding:"6px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <span style={{ fontSize:10,color:C.t3 }}>Referência</span>
+          <span style={{ fontSize:11,color:C.gold,fontWeight:700,fontFamily:"monospace" }}>{ref}</span>
         </div>
-        <div style={{background:DS.cardH,borderRadius:10,padding:"10px 12px",marginBottom:10}}>
-          <p style={{margin:"0 0 6px",fontWeight:600,fontSize:11,color:DS.gold}}>Dados do aluno</p>
-          {[["Nome",m.nome],["Plano",m.plano],["Vencimento",new Date(m.vencimento).toLocaleDateString("pt-AO")]].map(([l,v])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:`0.5px solid ${DS.border}`}}>
-              <span style={{fontSize:11,color:DS.t3}}>{l}</span><span style={{fontSize:11,color:DS.t1,fontWeight:500}}>{v}</span>
+        <div style={{ display:"flex",flexDirection:"column",gap:6,marginBottom:10 }}>
+          {[["Nome",m.nome],["Plano",m.plano],["Vencimento",new Date(m.vencimento).toLocaleDateString("pt-AO")]].map(([l,v]) => (
+            <div key={l} style={{ display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:11,color:C.t3 }}>{l}</span>
+              <span style={{ fontSize:11,color:C.t1,fontWeight:500 }}>{v}</span>
             </div>
           ))}
         </div>
-        <div style={{background:DS.cardH,borderRadius:10,padding:"10px 12px",marginBottom:10}}>
-          <p style={{margin:"0 0 6px",fontWeight:600,fontSize:11,color:DS.gold}}>Valores</p>
-          <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0"}}><span style={{fontSize:11,color:DS.t3}}>Mensalidade</span><span style={{fontSize:11,color:DS.t1}}>{formatKz(m.valor)}</span></div>
-          {multa>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0"}}><span style={{fontSize:11,color:DS.err}}>Multa {atraso}d (5%)</span><span style={{fontSize:11,color:DS.err}}>+{formatKz(multa)}</span></div>}
+        <div style={{ background:C.cardH,borderRadius:10,padding:"12px",marginBottom:10 }}>
+          <div style={{ display:"flex",justifyContent:"space-between",padding:"3px 0" }}><span style={{ fontSize:12,color:C.t3 }}>Mensalidade</span><span style={{ fontSize:12,color:C.t1 }}>{fmt(m.valor)}</span></div>
+          {multa>0 && <div style={{ display:"flex",justifyContent:"space-between",padding:"3px 0" }}><span style={{ fontSize:12,color:C.err }}>Multa {atraso}d (5%)</span><span style={{ fontSize:12,color:C.err }}>+{fmt(multa)}</span></div>}
           <GoldLine/>
-          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:700,color:DS.t1}}>TOTAL</span><span style={{fontSize:15,fontWeight:800,color:DS.gold}}>{formatKz(total)}</span></div>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+            <span style={{ fontSize:13,fontWeight:700,color:C.t1 }}>TOTAL</span>
+            <span style={{ fontSize:18,fontWeight:800,color:C.gold }}>{fmt(total)}</span>
+          </div>
         </div>
-        {atraso>0&&<div style={{background:DS.err+"18",borderRadius:8,padding:"8px 12px",marginBottom:10,borderLeft:`2px solid ${DS.err}`}}><p style={{margin:0,fontSize:11,color:DS.err}}>⚠️ Pagamento em atraso há {atraso} dias.</p></div>}
-        <div style={{display:"flex",gap:8}}>
-          <Btn full variant="gold" onClick={()=>{
-            if(enviarNotifAluno) enviarNotifAluno(m.email,{tipo:"cobranca",titulo:"Nota de cobrança",msg:`O seu pagamento de ${formatKz(total)} está pendente. Ref: ${ref}. Regularize para manter o acesso.`,ref,valor:total});
+        {atraso>0 && <div className="alert alert-err mb-12">⚠️ Pagamento em atraso há {atraso} dias.</div>}
+        <div className="flex gap-8">
+          <Btn full variant="gold" onClick={() => {
+            enviarNotifAluno?.(m.email, { tipo:"cobranca", titulo:"Nota de cobrança", msg:`Pagamento de ${fmt(total)} pendente. Ref: ${ref}.`, ref, valor:total });
             onClose();
-          }}>📨 Enviar (e-mail + perfil)</Btn>
+          }}>📨 Enviar notificação</Btn>
           <Btn variant="ghost" onClick={onClose}>Fechar</Btn>
         </div>
       </div>
@@ -265,88 +287,103 @@ function NotaCobranca({m,onClose,enviarNotifAluno}){
   );
 }
 
-// ── FINANCEIRO ────────────────────────────────────────
-function ModFinanceiro({mensalidades,setMensalidades,enviarNotifAluno}){
-  const [filtro,setFiltro]=useState("todos");
-  const [notaAberta,setNotaAberta]=useState(null);
-  const [regPag,setRegPag]=useState(null);
-  const [metodo,setMetodo]=useState("Multicaixa");
-  const [busca,setBusca]=useState("");
-  const emAtraso=mensalidades.filter(m=>!m.pago&&diasAtraso(m.vencimento)>0);
-  const totalRec=mensalidades.filter(m=>m.pago).reduce((a,m)=>a+m.valor,0);
-  const totalPend=mensalidades.filter(m=>!m.pago).reduce((a,m)=>a+m.valor,0);
-  const taxa=Math.round(mensalidades.filter(m=>m.pago).length/mensalidades.length*100);
-  const lista=mensalidades.filter(m=>{
-    const at=!m.pago?diasAtraso(m.vencimento):-1;
-    const mf=filtro==="todos"||(filtro==="pagos"&&m.pago)||(filtro==="atraso"&&!m.pago&&at>0)||(filtro==="pendente"&&!m.pago&&at<=0);
-    return mf&&m.nome.toLowerCase().includes(busca.toLowerCase());
+// ═══════════════════════════════════════════════════════
+// MÓDULO FINANCEIRO
+// ═══════════════════════════════════════════════════════
+function ModFinanceiro({ mensalidades, setMensalidades, enviarNotifAluno }) {
+  const [filtro,  setFiltro]  = useState("todos");
+  const [busca,   setBusca]   = useState("");
+  const [nota,    setNota]    = useState(null);
+  const [regPag,  setRegPag]  = useState(null);
+  const [metodo,  setMetodo]  = useState("Multicaixa");
+
+  const emAtraso   = mensalidades.filter(m => !m.pago && diasAt(m.vencimento) > 0);
+  const totalRec   = mensalidades.filter(m => m.pago).reduce((a,m) => a+m.valor, 0);
+  const totalPend  = mensalidades.filter(m => !m.pago).reduce((a,m) => a+m.valor, 0);
+  const taxa       = Math.round(mensalidades.filter(m=>m.pago).length / mensalidades.length * 100);
+
+  const lista = mensalidades.filter(m => {
+    const at = !m.pago ? diasAt(m.vencimento) : -1;
+    const ok = filtro==="todos" || (filtro==="pagos"&&m.pago) || (filtro==="atraso"&&!m.pago&&at>0) || (filtro==="pendente"&&!m.pago&&at<=0);
+    return ok && m.nome.toLowerCase().includes(busca.toLowerCase());
   });
-  const registarPag=id=>{setMensalidades(p=>p.map(m=>m.id===id?{...m,pago:true,dataPag:new Date().toISOString().slice(0,10),metodo}:m));setRegPag(null);};
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {notaAberta&&<NotaCobranca m={notaAberta} onClose={()=>setNotaAberta(null)} enviarNotifAluno={enviarNotifAluno}/>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
-        {[[formatKz(totalRec),"Recebido",DS.ok],[formatKz(totalPend),"Pendente",DS.warn],[emAtraso.length+" alunos","Em atraso",DS.err],[taxa+"%","Recuperação",DS.gold]].map(([v,l,c])=>(
-          <div key={l} style={{background:DS.card,border:`0.5px solid ${DS.border}`,borderRadius:10,padding:"10px 12px"}}>
-            <p style={{margin:"0 0 2px",fontSize:9,color:DS.t3,textTransform:"uppercase",letterSpacing:.5}}>{l}</p>
-            <p style={{margin:0,fontSize:15,fontWeight:700,color:c}}>{v}</p>
+
+  const registarPag = id => { setMensalidades(p => p.map(m => m.id===id ? {...m,pago:true,dataPag:new Date().toISOString().slice(0,10),metodo} : m)); setRegPag(null); };
+
+  return (
+    <div className="stack">
+      {nota && <NotaCobranca m={nota} onClose={()=>setNota(null)} enviarNotifAluno={enviarNotifAluno}/>}
+
+      {/* KPIs */}
+      <div className="kpi-grid">
+        {[[fmt(totalRec),"Recebido",C.ok,"↑"],[fmt(totalPend),"Pendente",C.warn,"⏳"],[emAtraso.length+" alunos","Em atraso",C.err,"🔴"],[taxa+"%","Taxa de recuperação",C.gold,"📈"]].map(([v,l,cor,ic])=>(
+          <div key={l} className="kpi-card">
+            <div className="kpi-label">{l}</div>
+            <div className="kpi-value" style={{ color:cor }}>{v}</div>
           </div>
         ))}
       </div>
-      {emAtraso.length>0&&(
-        <div style={{background:DS.err+"14",borderRadius:10,padding:"12px",border:`1px solid ${DS.err}44`}}>
-          <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.err}}>🚨 {emAtraso.length} aluno(s) com pagamento em atraso</p>
-          {emAtraso.map(m=>(
-            <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`0.5px solid ${DS.err}22`}}>
+
+      {/* Alertas de atraso */}
+      {emAtraso.length > 0 && (
+        <div style={{ background:"rgba(214,92,92,.08)",borderRadius:10,padding:14,border:`1px solid rgba(214,92,92,.25)` }}>
+          <div style={{ fontWeight:700,fontSize:12,color:C.err,marginBottom:10 }}>🚨 {emAtraso.length} aluno(s) com pagamento em atraso</div>
+          {emAtraso.map(m => (
+            <div key={m.id} className="flex justify-between items-center" style={{ padding:"6px 0",borderBottom:`1px solid rgba(214,92,92,.15)` }}>
               <div>
-                <p style={{margin:0,fontSize:12,fontWeight:600,color:DS.t1}}>{m.nome}</p>
-                <p style={{margin:0,fontSize:10,color:DS.err}}>{diasAtraso(m.vencimento)} dias · {formatKz(m.valor)}</p>
+                <div style={{ fontWeight:600,fontSize:12,color:C.t1 }}>{m.nome}</div>
+                <div style={{ fontSize:11,color:C.err }}>{diasAt(m.vencimento)} dias · {fmt(m.valor)}</div>
               </div>
-              <Btn small variant="danger" onClick={()=>setNotaAberta(m)}>📨 Cobrar</Btn>
+              <Btn small variant="danger" onClick={()=>setNota(m)}>📨 Cobrar</Btn>
             </div>
           ))}
         </div>
       )}
-      <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="🔍 Pesquisar aluno…" style={{padding:"8px 12px",borderRadius:8,border:`0.5px solid ${DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,outline:"none"}}/>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        {[["todos","Todos"],["pagos","Pagos ✅"],["pendente","Pendente ⏳"],["atraso","Em atraso 🔴"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setFiltro(k)} style={{background:filtro===k?DS.gold+"22":"transparent",color:filtro===k?DS.gold:DS.t3,border:`0.5px solid ${filtro===k?DS.gold:DS.border}`,borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",fontWeight:filtro===k?600:400}}>
-            {l}
-          </button>
+
+      {/* Filtros */}
+      <input className="input" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="🔍 Pesquisar aluno…"/>
+      <div className="flex gap-6" style={{ flexWrap:"wrap" }}>
+        {[["todos","Todos"],["pagos","✅ Pagos"],["pendente","⏳ Pendente"],["atraso","🔴 Em atraso"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFiltro(k)} style={{ background:filtro===k?"rgba(201,151,62,.15)":"transparent",color:filtro===k?C.gold:C.t3,border:`1px solid ${filtro===k?"rgba(201,151,62,.4)":C.border}`,borderRadius:99,padding:"4px 13px",fontSize:11,cursor:"pointer",fontWeight:filtro===k?600:400,fontFamily:"inherit" }}>{l}</button>
         ))}
       </div>
-      {lista.map(m=>{
-        const at=!m.pago?diasAtraso(m.vencimento):0;
-        const st=m.pago?"pago":at>0?"atraso":"pendente";
-        const stC={pago:{cor:DS.ok,label:"✅ Pago"},pendente:{cor:DS.warn,label:"⏳ Pendente"},atraso:{cor:DS.err,label:"🔴 Em atraso"}}[st];
-        return(
-          <div key={m.id} style={{background:DS.card,border:`0.5px solid ${st==="atraso"?DS.err+"66":DS.border}`,borderRadius:12,padding:"12px",borderLeft:`2px solid ${stC.cor}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <Av nome={m.nome} size={34}/>
-                <div><p style={{margin:0,fontWeight:600,fontSize:12,color:DS.t1}}>{m.nome}</p><p style={{margin:0,fontSize:10,color:DS.t3}}>Plano {m.plano}</p></div>
+
+      {/* Lista */}
+      {lista.map(m => {
+        const at    = !m.pago ? diasAt(m.vencimento) : 0;
+        const st    = m.pago ? "pago" : at>0 ? "atraso" : "pendente";
+        const stCfg = { pago:{cor:C.ok,label:"✅ Pago"}, pendente:{cor:C.warn,label:"⏳ Pendente"}, atraso:{cor:C.err,label:"🔴 Em atraso"} }[st];
+        return (
+          <div key={m.id} className="card" style={{ borderLeft:`3px solid ${stCfg.cor}`,padding:14 }}>
+            <div className="flex justify-between items-center mb-12">
+              <div className="flex items-center gap-10">
+                <Av nome={m.nome} size={36}/>
+                <div>
+                  <div style={{ fontWeight:600,fontSize:13,color:C.t1 }}>{m.nome}</div>
+                  <div style={{ fontSize:11,color:C.t3 }}>Plano {m.plano}</div>
+                </div>
               </div>
-              <Badge cor={stC.cor}>{stC.label}</Badge>
+              <Badge cor={stCfg.cor}>{stCfg.label}</Badge>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
-              <Chip label="Valor" valor={formatKz(m.valor)} cor={DS.gold}/>
-              <Chip label="Vencimento" valor={new Date(m.vencimento).toLocaleDateString("pt-AO")} cor={st==="atraso"?DS.err:DS.t2}/>
-              <Chip label={m.pago?"Pago em":"Atraso"} valor={m.pago?new Date(m.dataPag).toLocaleDateString("pt-AO"):at>0?at+"d":"—"} cor={m.pago?DS.ok:at>0?DS.err:DS.t3}/>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10 }}>
+              <Chip label="Valor"      valor={fmt(m.valor)}       cor={C.gold}/>
+              <Chip label="Vencimento" valor={new Date(m.vencimento).toLocaleDateString("pt-AO")} cor={st==="atraso"?C.err:C.t2}/>
+              <Chip label={m.pago?"Pago em":"Atraso"} valor={m.pago?new Date(m.dataPag).toLocaleDateString("pt-AO"):at>0?at+"d":"—"} cor={m.pago?C.ok:at>0?C.err:C.t3}/>
             </div>
-            <div style={{display:"flex",gap:6}}>
-              {!m.pago&&<><Btn small variant="success" onClick={()=>{setRegPag(m);setMetodo("Multicaixa");}}>✅ Registar</Btn><Btn small variant="danger" onClick={()=>setNotaAberta(m)}>📨 Cobrar</Btn></>}
-              {m.pago&&<Btn small variant="ghost" onClick={()=>setNotaAberta(m)}>🧾 Recibo</Btn>}
+            <div className="flex gap-6">
+              {!m.pago && <><Btn small variant="success" onClick={()=>{setRegPag(m);setMetodo("Multicaixa");}}>✅ Registar</Btn><Btn small variant="danger" onClick={()=>setNota(m)}>📨 Cobrar</Btn></>}
+              {m.pago  && <Btn small variant="ghost" onClick={()=>setNota(m)}>🧾 Recibo</Btn>}
             </div>
-            {regPag?.id===m.id&&(
-              <div style={{marginTop:10,background:DS.cardH,borderRadius:10,padding:"12px",border:`0.5px solid ${DS.gold}44`}}>
-                <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.gold}}>Método de pagamento</p>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
-                  {["Multicaixa","Transferência","Conta Express","Numerário"].map(mt=>(
-                    <button key={mt} onClick={()=>setMetodo(mt)} style={{background:metodo===mt?DS.gold+"22":"transparent",color:metodo===mt?DS.gold:DS.t3,border:`0.5px solid ${metodo===mt?DS.gold:DS.border}`,borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>{mt}</button>
+            {regPag?.id === m.id && (
+              <div style={{ marginTop:12,background:C.cardH,borderRadius:10,padding:12,border:`1px solid rgba(201,151,62,.25)` }}>
+                <div style={{ fontWeight:600,fontSize:11,color:C.gold,marginBottom:8 }}>Método de pagamento</div>
+                <div className="flex gap-6" style={{ flexWrap:"wrap",marginBottom:10 }}>
+                  {["Multicaixa","Transferência","Conta Express","Numerário"].map(mt => (
+                    <button key={mt} onClick={()=>setMetodo(mt)} style={{ background:metodo===mt?"rgba(201,151,62,.15)":"transparent",color:metodo===mt?C.gold:C.t3,border:`1px solid ${metodo===mt?"rgba(201,151,62,.4)":C.border}`,borderRadius:99,padding:"4px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit" }}>{mt}</button>
                   ))}
                 </div>
-                <div style={{display:"flex",gap:8}}>
-                  <Btn small full variant="gold" onClick={()=>registarPag(m.id)}>Confirmar — {formatKz(m.valor)}</Btn>
+                <div className="flex gap-8">
+                  <Btn small full variant="gold" onClick={()=>registarPag(m.id)}>Confirmar — {fmt(m.valor)}</Btn>
                   <Btn small variant="ghost" onClick={()=>setRegPag(null)}>Cancelar</Btn>
                 </div>
               </div>
@@ -358,76 +395,45 @@ function ModFinanceiro({mensalidades,setMensalidades,enviarNotifAluno}){
   );
 }
 
-// ── ANIVERSARIANTES ───────────────────────────────────
-function WidgetAniversariantes({enviarNotifAluno,notifEnviadas,setNotifEnviadas}){
-  const hoje=new Date();
-  const dd=String(hoje.getDate()).padStart(2,"0");
-  const mm=String(hoje.getMonth()+1).padStart(2,"0");
-  const aniv=ANIVERSARIOS.filter(a=>{const[,am,ad]=a.dob.split("-");return am===mm&&ad===dd;});
-  const anos=dob=>hoje.getFullYear()-parseInt(dob.split("-")[0]);
-  const enviar=a=>{
-    if(notifEnviadas.includes(a.email))return;
-    enviarNotifAluno(a.email,{tipo:"academia",titulo:`🎂 Feliz Aniversário, ${a.nome.split(" ")[0]}!`,msg:`Toda a equipa FitCore deseja-lhe um Feliz Aniversário! 🎉 Saúde, força e conquistas. Hoje o treino é por nossa conta! 💪`});
-    setNotifEnviadas(p=>[...p,a.email]);
-  };
-  useEffect(()=>{aniv.forEach(a=>{if(!notifEnviadas.includes(a.email))enviar(a);});},[]);
-  if(!aniv.length)return null;
-  return(
-    <div style={{background:DS.card,borderRadius:14,padding:"14px",border:`1px solid ${DS.gold}55`,marginBottom:4}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <span style={{fontSize:22}}>🎂</span>
-        <div>
-          <p style={{margin:0,fontWeight:700,fontSize:13,color:DS.gold}}>Aniversariantes de hoje</p>
-          <p style={{margin:0,fontSize:10,color:DS.t3}}>Mensagem automática enviada</p>
-        </div>
-      </div>
-      {aniv.map(a=>(
-        <div key={a.email} style={{display:"flex",alignItems:"center",gap:10,background:DS.cardH,borderRadius:10,padding:"8px 12px",marginBottom:6}}>
-          <Av nome={a.nome} size={36}/>
-          <div style={{flex:1}}>
-            <p style={{margin:0,fontWeight:600,fontSize:12,color:DS.t1}}>{a.nome}</p>
-            <p style={{margin:0,fontSize:10,color:DS.t3}}>{anos(a.dob)} anos · Plano {a.plano}</p>
-          </div>
-          {notifEnviadas.includes(a.email)?<Badge cor={DS.ok}>✅ Enviado</Badge>:<Btn small variant="gold" onClick={()=>enviar(a)}>🎉 Enviar</Btn>}
-        </div>
-      ))}
+// ═══════════════════════════════════════════════════════
+// NOTIFICAÇÕES
+// ═══════════════════════════════════════════════════════
+const NOTIF_CFG = {
+  cobranca: { icon:"💰", cor:C.err  },
+  academia: { icon:"📢", cor:C.gold },
+  agua:     { icon:"💧", cor:C.info },
+  ausencia: { icon:"📵", cor:C.warn },
+  default:  { icon:"🔔", cor:C.gold },
+};
+
+function PainelNotifs({ notifs, marcarLida }) {
+  const naoLidas = notifs.filter(n => !n.lida).length;
+  if (!notifs.length) return (
+    <div className="text-center" style={{ padding:"48px 0" }}>
+      <div style={{ fontSize:40,marginBottom:12 }}>🔔</div>
+      <div style={{ fontWeight:600,color:C.t1 }}>Sem notificações</div>
+      <div style={{ fontSize:12,color:C.t3,marginTop:4 }}>As mensagens da academia aparecem aqui.</div>
     </div>
   );
-}
-
-// ── NOTIFICAÇÕES ──────────────────────────────────────
-const NOTIF_CFG={cobranca:{icon:"💰",cor:DS.err},academia:{icon:"📢",cor:DS.gold},agua:{icon:"💧",cor:"#4A9ECC"},ausencia:{icon:"📵",cor:DS.warn},default:{icon:"🔔",cor:DS.gold}};
-
-function PainelNotifs({notifs,marcarLida}){
-  const naoLidas=notifs.filter(n=>!n.lida).length;
-  if(!notifs.length)return(
-    <div style={{textAlign:"center",padding:"3rem 1rem"}}>
-      <p style={{fontSize:36,margin:"0 0 10px"}}>🔔</p>
-      <p style={{margin:0,fontWeight:600,fontSize:14,color:DS.t1}}>Sem notificações</p>
-      <p style={{margin:"4px 0 0",fontSize:12,color:DS.t3}}>As mensagens da academia aparecem aqui.</p>
-    </div>
-  );
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <p style={{margin:0,fontSize:11,color:DS.t3}}>{notifs.length} notificação(ões) · <span style={{color:DS.err}}>{naoLidas} por ler</span></p>
-        {naoLidas>0&&<button onClick={()=>notifs.filter(n=>!n.lida).forEach(n=>marcarLida(n.id))} style={{background:"none",border:`0.5px solid ${DS.border}`,borderRadius:8,padding:"3px 10px",fontSize:10,cursor:"pointer",color:DS.t3}}>Marcar todas lidas</button>}
+  return (
+    <div className="stack">
+      <div className="flex justify-between items-center">
+        <span style={{ fontSize:12,color:C.t3 }}>{notifs.length} notificação(ões) · <span style={{ color:C.err }}>{naoLidas} por ler</span></span>
+        {naoLidas > 0 && <button onClick={()=>notifs.filter(n=>!n.lida).forEach(n=>marcarLida(n.id))} style={{ background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:10,cursor:"pointer",color:C.t3,fontFamily:"inherit" }}>Marcar todas lidas</button>}
       </div>
-      {notifs.map(n=>{
-        const c=NOTIF_CFG[n.tipo]||NOTIF_CFG.default;
-        return(
-          <div key={n.id} onClick={()=>!n.lida&&marcarLida(n.id)} style={{background:n.lida?DS.card:DS.cardH,borderRadius:12,padding:"12px",border:`1px solid ${n.lida?DS.border:c.cor+"55"}`,cursor:n.lida?"default":"pointer",position:"relative"}}>
-            {!n.lida&&<div style={{position:"absolute",top:12,right:12,width:7,height:7,borderRadius:"50%",background:c.cor}}/>}
-            <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-              <div style={{width:34,height:34,borderRadius:8,background:c.cor+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                  <p style={{margin:0,fontWeight:700,fontSize:12,color:n.lida?DS.t2:c.cor}}>{n.titulo}</p>
-                  <span style={{fontSize:10,color:DS.t3}}>{n.hora}</span>
+      {notifs.map(n => {
+        const cfg = NOTIF_CFG[n.tipo] || NOTIF_CFG.default;
+        return (
+          <div key={n.id} onClick={()=>!n.lida&&marcarLida(n.id)} className="card" style={{ cursor:n.lida?"default":"pointer",border:`1px solid ${n.lida?C.border:cfg.cor+"44"}`,padding:14 }}>
+            <div className="flex gap-10 items-start">
+              <div style={{ width:36,height:36,borderRadius:9,background:cfg.cor+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>{cfg.icon}</div>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div className="flex justify-between items-center mb-8" style={{ gap:8 }}>
+                  <div style={{ fontWeight:700,fontSize:12,color:n.lida?C.t2:cfg.cor,flex:1 }}>{n.titulo}</div>
+                  {!n.lida && <div className="notif-dot" style={{ background:cfg.cor }}/>}
                 </div>
-                <p style={{margin:0,fontSize:11,color:n.lida?DS.t3:DS.t2,lineHeight:1.5}}>{n.msg}</p>
-                {n.ref&&<p style={{margin:"4px 0 0",fontSize:9,fontFamily:"monospace",color:DS.t3}}>Ref: {n.ref}</p>}
-                {n.valor&&!n.lida&&<p style={{margin:"6px 0 0",fontSize:13,fontWeight:700,color:c.cor}}>{formatKz(n.valor)}</p>}
+                <div style={{ fontSize:11,color:C.t3,lineHeight:1.5 }}>{n.msg}</div>
+                <div style={{ fontSize:10,color:C.t3,marginTop:6 }}>{n.hora}</div>
               </div>
             </div>
           </div>
@@ -437,91 +443,83 @@ function PainelNotifs({notifs,marcarLida}){
   );
 }
 
-// ── CHECK-IN ──────────────────────────────────────────
-function CheckinCard({user,codigo,onPresenca,presencaHoje,isProf}){
-  const [scanning,setScanning]=useState(false);
-  const [line,setLine]=useState(0);
-  const [confirmado,setConfirmado]=useState(presencaHoje);
-  const hojeStr=new Date().toLocaleDateString("pt-AO",{weekday:"long",day:"2-digit",month:"long"});
-  useEffect(()=>{setConfirmado(presencaHoje);},[presencaHoje]);
-  useEffect(()=>{if(!scanning||confirmado)return;const t=setInterval(()=>setLine(l=>(l+3)%180),14);return()=>clearInterval(t);},[scanning,confirmado]);
-  useEffect(()=>{
-    if(!scanning||confirmado)return;
-    const t=setTimeout(()=>{setScanning(false);onPresenca();setConfirmado(true);},2200);
-    return()=>clearTimeout(t);
-  },[scanning,confirmado]);
-  const acor=isProf?"#378ADD":DS.gold;
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{background:confirmado?DS.ok+"18":acor+"18",borderRadius:12,padding:"12px 16px",border:`1px solid ${confirmado?DS.ok:acor}55`,display:"flex",gap:12,alignItems:"center"}}>
-        <span style={{fontSize:26}}>{confirmado?"✅":isProf?"🏫":"📷"}</span>
-        <div>
-          <p style={{margin:0,fontWeight:700,fontSize:13,color:confirmado?DS.ok:acor}}>{confirmado?"Presença registada!":"Marcar presença"}</p>
-          <p style={{margin:0,fontSize:11,color:DS.t3}}>{confirmado?`Check-in — ${hojeStr}`:"Digitalize o seu QR Code na entrada."}</p>
+// ═══════════════════════════════════════════════════════
+// CHECK-IN
+// ═══════════════════════════════════════════════════════
+function CheckinCard({ user, codigo, presencaHoje, onPresenca, isProf }) {
+  const [scanning,  setScanning]  = useState(false);
+  const [scanOk,    setScanOk]    = useState(false);
+  const [scanMsg,   setScanMsg]   = useState("");
+  const cor = isProf ? C.info : C.gold;
+
+  const hoje     = new Date();
+  const mesAtual = hoje.getMonth();
+  const anoAtual = hoje.getFullYear();
+  const diasMes  = new Date(anoAtual, mesAtual+1, 0).getDate();
+  const diasArr  = Array.from({length:diasMes}, (_,i) => i+1);
+  const hoje_d   = hoje.getDate();
+
+  const simularScan = () => {
+    setScanning(true); setScanOk(false); setScanMsg("");
+    setTimeout(() => {
+      setScanning(false); setScanOk(true);
+      setScanMsg("✅ Acesso confirmado — " + (isProf ? "Professor" : user.nome.split(" ")[0]));
+      onPresenca();
+    }, 2200);
+  };
+
+  return (
+    <div className="stack">
+      {/* QR pessoal */}
+      <div className="qr-card">
+        <div style={{ display:"inline-block",padding:12,background:C.bg,borderRadius:10,marginBottom:12,border:`1px solid rgba(201,151,62,.2)` }}>
+          <QRCode id={codigo} size={140}/>
         </div>
+        <div style={{ fontWeight:800,fontSize:16,color:C.t1,marginBottom:2 }}>{user.nome}</div>
+        <div style={{ fontFamily:"monospace",fontSize:12,color:cor,letterSpacing:2 }}>{codigo}</div>
+        {user.plano && <div style={{ marginTop:8 }}><Badge cor={planoCor[user.plano]||C.gold}>{user.plano}</Badge></div>}
+        {isProf && <div style={{ marginTop:8 }}><Badge cor={C.info}>Corpo Docente</Badge></div>}
       </div>
-      <div style={{background:DS.card,borderRadius:14,padding:"1.25rem",border:`1px solid ${acor}44`,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:"50%",background:acor+"08"}}/>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-          <div><p style={{margin:0,fontSize:9,color:DS.t3,letterSpacing:1}}>FITCORE</p><p style={{margin:0,fontSize:8,color:DS.t3}}>{isProf?"Corpo docente":"Cartão de membro"}</p></div>
-          {user.plano?<Badge cor={planoCor[user.plano]||acor}>{user.plano}</Badge>:<Badge cor={acor}>Personal Trainer</Badge>}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-          <Av nome={user.nome} foto={user.foto} size={46}/>
-          <div><p style={{margin:0,fontWeight:700,fontSize:15,color:DS.t1}}>{user.nome}</p><p style={{margin:0,fontSize:10,color:DS.t3}}>{UNIDADES.find(u=>u.id===user.unidade)?.nome||"FitCore"}</p></div>
-        </div>
-        <div style={{background:DS.bg0,borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`0.5px solid ${acor}33`}}>
-          <div>
-            <p style={{margin:"0 0 2px",fontSize:9,color:DS.t3,textTransform:"uppercase",letterSpacing:.5}}>Código</p>
-            <p style={{margin:0,fontWeight:800,fontSize:17,color:acor,letterSpacing:2}}>{codigo}</p>
+
+      {/* Scanner */}
+      <div className="card text-center">
+        <div style={{ fontWeight:600,fontSize:13,color:C.t1,marginBottom:14 }}>Scanner de entrada</div>
+        {presencaHoje
+          ? <div className="alert alert-ok" style={{ textAlign:"center",marginBottom:12 }}>✅ Presença registada hoje</div>
+          : scanning
+            ? <div className="scanner-frame"><div className="scanner-line"/></div>
+            : scanOk
+              ? <div className="alert alert-ok" style={{ textAlign:"center" }}>{scanMsg}</div>
+              : <div style={{ width:180,height:180,borderRadius:12,background:C.cardH,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",border:`2px dashed ${C.border}`,flexDirection:"column",gap:8 }}>
+                  <span style={{ fontSize:32 }}>📷</span>
+                  <span style={{ fontSize:11,color:C.t3 }}>Aguarda leitura</span>
+                </div>
+        }
+        {!presencaHoje && !scanning && !scanOk && (
+          <div style={{ marginTop:14 }}>
+            <Btn full variant={isProf?"outline":"gold"} onClick={simularScan}>Simular check-in</Btn>
           </div>
-          <div style={{background:DS.bg0,borderRadius:8,padding:6,border:`1px solid ${acor}44`,position:"relative"}}>
-            {confirmado&&<div style={{position:"absolute",inset:0,borderRadius:7,background:DS.ok+"44",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,fontSize:20}}>✅</div>}
-            <QRCode id={codigo} size={56}/>
-          </div>
-        </div>
+        )}
       </div>
-      {!confirmado&&(
-        <div style={{background:DS.card,borderRadius:14,padding:"1.25rem",border:`0.5px solid ${DS.border}`,display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-          <p style={{margin:0,fontSize:11,color:DS.t3}}>Simulador de leitura — portão</p>
-          <div style={{position:"relative",width:180,height:180,borderRadius:12,overflow:"hidden",border:`2px solid ${scanning?acor:DS.border}`,background:DS.bg0}}>
-            {[[0,0],[1,0],[0,1],[1,1]].map(([r,cc],i)=>(
-              <div key={i} style={{position:"absolute",top:r===0?10:"auto",bottom:r===1?10:"auto",left:cc===0?10:"auto",right:cc===1?10:"auto",width:18,height:18,borderTop:r===0?`3px solid ${scanning?acor:DS.border}`:"none",borderBottom:r===1?`3px solid ${scanning?acor:DS.border}`:"none",borderLeft:cc===0?`3px solid ${scanning?acor:DS.border}`:"none",borderRight:cc===1?`3px solid ${scanning?acor:DS.border}`:"none"}}/>
-            ))}
-            {scanning&&<div style={{position:"absolute",left:14,right:14,top:line+10,height:2,background:`linear-gradient(90deg,transparent,${acor},transparent)`,boxShadow:`0 0 8px ${acor}`}}/>}
-            {!scanning&&<div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6}}><span style={{fontSize:30,opacity:.2}}>📷</span><p style={{margin:0,fontSize:10,color:DS.t3,textAlign:"center",padding:"0 16px"}}>Prima para simular leitura</p></div>}
-          </div>
-          <Btn full variant={isProf?"outline":"gold"} onClick={()=>setScanning(true)} disabled={scanning}>
-            {scanning?"A ler QR Code…":"📷 Simular leitura"}
-          </Btn>
+
+      {/* Calendário de presenças */}
+      <div className="card">
+        <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:12 }}>
+          {hoje.toLocaleString("pt-AO",{month:"long",year:"numeric"})}
         </div>
-      )}
-      {confirmado&&(
-        <div style={{background:DS.ok+"14",borderRadius:12,padding:"12px",border:`0.5px solid ${DS.ok}44`}}>
-          <p style={{margin:"0 0 8px",fontWeight:600,fontSize:12,color:DS.ok}}>✅ Entrada confirmada</p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {[["Data",new Date().toLocaleDateString("pt-AO")],["Hora",hhmm()],["Função",isProf?"Personal Trainer":"Membro"],["Unidade","Luanda Centro"]].map(([l,v])=>(
-              <div key={l} style={{background:DS.ok+"0A",borderRadius:8,padding:"6px 10px"}}>
-                <p style={{margin:0,fontSize:9,color:DS.ok,opacity:.7}}>{l}</p>
-                <p style={{margin:0,fontSize:12,fontWeight:600,color:DS.ok}}>{v}</p>
-              </div>
-            ))}
-          </div>
-          <p style={{margin:"8px 0 0",fontSize:11,color:DS.ok,textAlign:"center"}}>{isProf?`Boa aula, ${user.nome.split(" ")[0]}! 🏋️`:`Bom treino, ${user.nome.split(" ")[0]}! 💪`}</p>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4 }}>
+          {["D","S","T","Q","Q","S","S"].map((d,i)=>(
+            <div key={i} style={{ textAlign:"center",fontSize:9,color:C.t3,fontWeight:600,padding:"0 0 4px" }}>{d}</div>
+          ))}
         </div>
-      )}
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-        <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.t2}}>Presenças — {new Date().toLocaleDateString("pt-AO",{month:"long",year:"numeric"})}</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-          {["D","S","T","Q","Q","S","S"].map((d,i)=><p key={i} style={{margin:0,fontSize:9,color:DS.t3,textAlign:"center"}}>{d}</p>)}
-          {Array(new Date(new Date().getFullYear(),new Date().getMonth(),1).getDay()).fill(null).map((_,i)=><div key={"o"+i}/>)}
-          {Array(new Date().getDate()).fill(null).map((_,i)=>{
-            const d=i+1,isH=d===new Date().getDate();
-            const dow=new Date(new Date().getFullYear(),new Date().getMonth(),d).getDay();
-            const tp=(dow>=1&&dow<=5&&d<new Date().getDate())||(confirmado&&isH);
-            return(
-              <div key={d} style={{aspectRatio:"1",borderRadius:5,background:isH&&confirmado?DS.gold:tp?DS.gold+"22":isH?DS.cardH:DS.bg0,display:"flex",alignItems:"center",justifyContent:"center",border:`0.5px solid ${isH?DS.gold+"66":"transparent"}`}}>
-                <p style={{margin:0,fontSize:9,fontWeight:isH?700:400,color:isH&&confirmado?DS.bg0:tp?DS.gold:isH?DS.gold:DS.t3}}>{d}</p>
+        <div className="cal-grid">
+          {diasArr.map(d => {
+            const isToday   = d === hoje_d;
+            const isPast    = d <= hoje_d;
+            const hasPresenca = isPast && (d % 3 !== 0) && d < hoje_d; // simulado
+            return (
+              <div key={d} className={`cal-day ${isToday&&presencaHoje?"present":hasPresenca?"present":"empty"}${isToday?" today":""}`}>
+                {d}
               </div>
             );
           })}
@@ -531,92 +529,101 @@ function CheckinCard({user,codigo,onPresenca,presencaHoje,isProf}){
   );
 }
 
-// ── TREINO ────────────────────────────────────────────
-function PlanoDeTreino({plano}){
-  const [diaAtivo,setDiaAtivo]=useState(0);
-  const [exAberto,setExAberto]=useState(null);
-  const dia=SEMANA[diaAtivo];
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-        <p style={{margin:"0 0 2px",fontWeight:700,fontSize:13,color:DS.t1}}>Plano Semanal</p>
-        <p style={{margin:0,fontSize:10,color:DS.t3}}>IA · Plano <span style={{color:planoCor[plano]||DS.gold,fontWeight:600}}>{plano}</span></p>
-      </div>
-      <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:2}}>
-        {SEMANA.map((s,i)=>(
-          <button key={i} onClick={()=>{setDiaAtivo(i);setExAberto(null);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"7px 10px",borderRadius:10,border:`1px solid ${diaAtivo===i?DS.gold:DS.border}`,background:diaAtivo===i?DS.gold+"18":DS.card,cursor:"pointer",flexShrink:0,minWidth:44}}>
-            <span style={{fontSize:13}}>{s.icon}</span>
-            <span style={{fontSize:9,fontWeight:diaAtivo===i?700:400,color:diaAtivo===i?DS.gold:DS.t3}}>{s.dia}</span>
+// ═══════════════════════════════════════════════════════
+// PLANO DE TREINO
+// ═══════════════════════════════════════════════════════
+function PlanoDeTreino({ plano }) {
+  const [diaAberto, setDiaAberto] = useState("Seg");
+  const [exAberto,  setExAberto]  = useState(null);
+  const diaAtual = SEMANA.find(d => d.dia===diaAberto);
+
+  return (
+    <div className="stack">
+      {/* Tabs de dia */}
+      <div className="flex gap-4" style={{ overflowX:"auto" }}>
+        {SEMANA.map(d => (
+          <button key={d.dia} onClick={()=>setDiaAberto(d.dia)} style={{ padding:"8px 10px",background:diaAberto===d.dia?"rgba(201,151,62,.15)":"transparent",color:diaAberto===d.dia?C.gold:C.t3,border:`1px solid ${diaAberto===d.dia?"rgba(201,151,62,.4)":C.border}`,borderRadius:8,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:diaAberto===d.dia?700:400 }}>
+            <div>{d.icon}</div>
+            <div style={{ fontSize:9,marginTop:2 }}>{d.dia}</div>
           </button>
         ))}
       </div>
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <span style={{fontSize:18}}>{dia.icon}</span>
-          <div><p style={{margin:0,fontWeight:700,fontSize:13,color:DS.t1}}>{dia.foco}</p><p style={{margin:0,fontSize:10,color:DS.t3}}>{dia.exercicios.length>0?`${dia.exercicios.length} exercícios`:"Sem treino"}</p></div>
-        </div>
-        {dia.exercicios.length===0&&<p style={{margin:0,fontSize:11,color:DS.t3,textAlign:"center",padding:"1rem 0"}}>{dia.foco==="Cardio HIIT"?"30–45 min cardio moderado.":"Descanse e recupere!"}</p>}
-        {dia.exercicios.map((ex,idx)=>{
-          const ab=exAberto===idx;
-          return(
-            <div key={idx} style={{marginBottom:7,border:`0.5px solid ${ab?DS.gold:DS.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div onClick={()=>setExAberto(ab?null:idx)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",cursor:"pointer",background:ab?DS.gold+"12":DS.cardH}}>
-                <div style={{width:32,height:32,borderRadius:7,background:DS.gold+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>💪</div>
-                <div style={{flex:1}}><p style={{margin:0,fontWeight:600,fontSize:12,color:ab?DS.gold:DS.t1}}>{ex.nome}</p><p style={{margin:0,fontSize:10,color:DS.t3}}>{ex.maquina}</p></div>
-                <div style={{textAlign:"right",flexShrink:0}}><Badge cor={DS.gold}>{ex.series}×{ex.reps}</Badge><p style={{margin:"3px 0 0",fontSize:9,color:DS.t3}}>⏱ {ex.descanso}</p></div>
-                <span style={{color:DS.t3,fontSize:11,marginLeft:4}}>{ab?"▲":"▼"}</span>
+
+      <div className="card">
+        <div style={{ fontWeight:700,fontSize:14,color:C.t1,marginBottom:4 }}>{diaAtual.icon} {diaAtual.foco}</div>
+        <div style={{ fontSize:11,color:C.t3 }}>{diaAtual.exercicios.length} exercícios · {plano}</div>
+      </div>
+
+      {diaAtual.exercicios.length === 0
+        ? <div className="card text-center" style={{ padding:"32px 0" }}>
+            <div style={{ fontSize:36 }}>{diaAtual.icon}</div>
+            <div style={{ marginTop:8,color:C.t2 }}>{diaAtual.foco}</div>
+          </div>
+        : diaAtual.exercicios.map((ex,i) => (
+          <div key={i} className="card" style={{ padding:0,overflow:"hidden" }}>
+            <div className="flex justify-between items-center" style={{ padding:"12px 14px",cursor:"pointer" }} onClick={()=>setExAberto(exAberto===i?null:i)}>
+              <div>
+                <div style={{ fontWeight:600,fontSize:13,color:C.t1 }}>{ex.nome}</div>
+                <div style={{ fontSize:11,color:C.t3 }}>{ex.musculo} · {ex.series}×{ex.reps}</div>
               </div>
-              {ab&&(
-                <div style={{padding:"10px 12px",background:DS.card,borderTop:`0.5px solid ${DS.gold}33`}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5,marginBottom:8}}>
-                    {[["Séries",ex.series,DS.gold],["Reps",ex.reps,DS.ok],["Descanso",ex.descanso,DS.warn],["Músculo",ex.musculo,DS.t2]].map(([l,v,c])=>(
-                      <div key={l} style={{background:DS.bg0,borderRadius:6,padding:"5px 7px",textAlign:"center"}}>
-                        <p style={{margin:"0 0 1px",fontSize:8,color:DS.t3,textTransform:"uppercase"}}>{l}</p>
-                        <p style={{margin:0,fontSize:10,fontWeight:700,color:c}}>{v}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{background:DS.gold+"14",borderRadius:8,padding:"6px 10px",marginBottom:5,display:"flex",gap:6}}><span style={{fontSize:12}}>🏋️</span><p style={{margin:0,fontSize:11,color:DS.gold}}>{ex.maquina}</p></div>
-                  <div style={{background:DS.warn+"14",borderRadius:8,padding:"6px 10px",display:"flex",gap:6}}><span style={{fontSize:12}}>💡</span><p style={{margin:0,fontSize:11,color:DS.warn}}>{ex.dica}</p></div>
-                </div>
-              )}
+              <div style={{ fontSize:12,color:C.gold }}>{exAberto===i?"▲":"▼"}</div>
             </div>
-          );
-        })}
-      </div>
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-        <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.t2}}>Evolução de carga — Supino</p>
-        <LineChart series={EXERCICIOS[0].series}/>
-      </div>
+            {exAberto === i && (
+              <div style={{ padding:"0 14px 14px",borderTop:`1px solid ${C.border}` }}>
+                <div className="flex gap-6" style={{ flexWrap:"wrap",margin:"12px 0" }}>
+                  {[["Séries",ex.series],["Reps",ex.reps],["Descanso",ex.descanso],["Músculo",ex.musculo]].map(([l,v])=>(
+                    <div key={l} className="chip" style={{ padding:"6px 10px" }}>
+                      <div className="chip-label">{l}</div>
+                      <div className="chip-value" style={{ color:C.gold,fontSize:12 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background:"rgba(201,151,62,.08)",borderRadius:8,padding:"8px 12px",borderLeft:`3px solid ${C.gold}` }}>
+                  <div style={{ fontSize:10,color:C.gold,fontWeight:600,marginBottom:2 }}>💡 DICA</div>
+                  <div style={{ fontSize:11,color:C.t2 }}>{ex.dica}</div>
+                </div>
+                <div style={{ fontSize:11,color:C.t3,marginTop:10 }}>🏋️ {ex.maquina}</div>
+              </div>
+            )}
+          </div>
+        ))
+      }
     </div>
   );
 }
 
-// ── HIDRATAÇÃO ────────────────────────────────────────
-function PainelAgua({user,agua,setAgua}){
-  const meta=aguaPorPlano[user.plano]||3.0;
-  const pct=Math.min((agua/meta)*100,100);
-  const cor=pct>=80?DS.ok:pct>=50?DS.gold:DS.err;
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      <div style={{background:DS.card,borderRadius:14,padding:"1.5rem",border:`0.5px solid ${DS.gold}33`,textAlign:"center"}}>
-        <p style={{margin:"0 0 4px",fontSize:40}}>💧</p>
-        <p style={{margin:"0 0 4px",fontSize:34,fontWeight:800,color:cor}}>{agua.toFixed(1)}L</p>
-        <p style={{margin:"0 0 14px",fontSize:11,color:DS.t3}}>de {meta}L diários — Plano {user.plano}</p>
-        <div style={{background:DS.bg0,borderRadius:8,height:8,marginBottom:14,overflow:"hidden"}}>
-          <div style={{width:`${pct}%`,height:"100%",background:`linear-gradient(90deg,${cor}88,${cor})`,borderRadius:8,transition:"width .5s"}}/>
-        </div>
-        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-          {[0.25,0.5,1].map(q=><Btn key={q} variant="gold" onClick={()=>setAgua(a=>Math.min(a+q,meta))}>+{q}L</Btn>)}
+// ═══════════════════════════════════════════════════════
+// HIDRATAÇÃO
+// ═══════════════════════════════════════════════════════
+function PainelAgua({ user, agua, setAgua }) {
+  const meta = aguaPorPlano[user.plano] || 3;
+  const pct  = Math.min((agua/meta)*100, 100);
+  const cor  = pct >= 100 ? C.ok : pct >= 60 ? C.info : C.warn;
+
+  return (
+    <div className="stack">
+      <div className="card text-center" style={{ padding:24 }}>
+        <div style={{ fontSize:48,marginBottom:8 }}>💧</div>
+        <div style={{ fontSize:42,fontWeight:800,color:cor,lineHeight:1 }}>{agua.toFixed(1)}<span style={{ fontSize:18,fontWeight:400,color:C.t3 }}>L</span></div>
+        <div style={{ fontSize:12,color:C.t3,marginTop:4,marginBottom:20 }}>de {meta}L · Meta diária {user.plano}</div>
+        <Bar valor={agua} max={meta} height={8} cor={cor}/>
+        <div style={{ fontSize:11,color:C.t3,marginTop:6 }}>{Math.round(pct)}% da meta</div>
+        {pct >= 100 && <div className="alert alert-ok" style={{ marginTop:12,textAlign:"center" }}>🎉 Meta atingida! Excelente hidratação.</div>}
+      </div>
+      <div className="card">
+        <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:12 }}>Adicionar água</div>
+        <div className="flex gap-8">
+          {[0.25, 0.5, 1].map(q => (
+            <Btn key={q} full variant="outline" onClick={()=>setAgua(a=>Math.min(a+q,meta))}>+{q}L</Btn>
+          ))}
         </div>
       </div>
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-        <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.t2}}>Lembretes de hoje</p>
-        {["06:00","08:00","10:00","12:00","14:00","16:00","18:00","20:00"].map((h,i)=>(
-          <div key={h} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`0.5px solid ${DS.border}`}}>
-            <span style={{fontSize:12,opacity:i<4?1:.3}}>💧</span>
-            <span style={{fontSize:11,flex:1,color:i<4?DS.t1:DS.t3}}>{h} — Beber 0.5L</span>
-            <span style={{fontSize:10,color:i<4?DS.ok:DS.t3,fontWeight:500}}>{i<4?"✓ Feito":"Pendente"}</span>
+      <div className="card">
+        <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:10 }}>Lembretes do dia</div>
+        {[["07:00","☀️ Beba 0.5L ao acordar"],["10:00","💧 Hora de hidratar"],["13:00","🥤 Água antes do almoço"],["16:00","💧 A meio da tarde"],["19:00","🏋️ Hidratação pós-treino"],["22:00","🌙 Último copo do dia"]].map(([h,t])=>(
+          <div key={h} className="flex items-center gap-10" style={{ padding:"6px 0",borderBottom:`1px solid ${C.border}` }}>
+            <span style={{ fontFamily:"monospace",fontSize:11,color:C.gold,flexShrink:0 }}>{h}</span>
+            <span style={{ fontSize:12,color:C.t2 }}>{t}</span>
           </div>
         ))}
       </div>
@@ -624,64 +631,109 @@ function PainelAgua({user,agua,setAgua}){
   );
 }
 
-// ── COMUNIDADE ────────────────────────────────────────
-function PainelComunidade({user,posts,setPosts,unidadeId}){
-  const [novoP,setNovoP]=useState("");
-  const [tipoP,setTipoP]=useState("progresso");
-  const [liked,setLiked]=useState([]);
-  const [expAberto,setExpAberto]=useState(null);
-  const [novoC,setNovoC]=useState("");
-  const tipoCfg={conquista:{icon:"🏆",cor:DS.gold},academia:{icon:"📢",cor:DS.ok},progresso:{icon:"📈",cor:"#D4537E"},dica:{icon:"💡",cor:"#378ADD"}};
-  const uid=unidadeId||user.unidade;
-  const like=id=>{if(liked.includes(id)){setLiked(l=>l.filter(x=>x!==id));setPosts(p=>p.map(x=>x.id===id?{...x,likes:x.likes-1}:x));}else{setLiked(l=>[...l,id]);setPosts(p=>p.map(x=>x.id===id?{...x,likes:x.likes+1}:x));}};
-  const comentar=id=>{if(!novoC.trim())return;setPosts(p=>p.map(x=>x.id===id?{...x,comentarios:[...x.comentarios,novoC]}:x));setNovoC("");};
-  const publicar=()=>{if(!novoP.trim())return;const tC={progresso:"#D4537E",dica:"#378ADD",conquista:DS.gold,academia:DS.ok};setPosts(p=>[{id:Date.now(),autor:user.nome,avatar:user.avatar,tipo:tipoP,conteudo:novoP,hora:hhmm(),likes:0,comentarios:[],unidade:uid,cor:tC[tipoP]||DS.gold},...p]);setNovoP("");};
-  const feed=posts.filter(p=>p.unidade===uid);
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      <div style={{background:DS.card,border:`0.5px solid ${DS.border}`,borderRadius:12,padding:"12px"}}>
-        <div style={{display:"flex",gap:8,marginBottom:8}}>
-          <Av nome={user.nome} size={32}/>
-          <textarea value={novoP} onChange={e=>setNovoP(e.target.value)} placeholder="Partilhe conquista, dica ou progresso…" rows={2} style={{flex:1,resize:"none",border:`0.5px solid ${DS.border}`,borderRadius:8,padding:"7px 10px",fontSize:11,background:DS.cardH,color:DS.t1,fontFamily:"inherit",outline:"none"}}/>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",gap:5}}>
-            {[["progresso","📈"],["dica","💡"],["conquista","🏆"],["academia","📢"]].map(([t,ic])=>{
-              const cor=tipoCfg[t]?.cor||DS.gold;
-              return <button key={t} onClick={()=>setTipoP(t)} style={{background:tipoP===t?cor+"22":"transparent",color:tipoP===t?cor:DS.t3,border:`0.5px solid ${tipoP===t?cor:DS.border}`,borderRadius:20,padding:"3px 9px",fontSize:11,cursor:"pointer"}}>{ic}</button>;
-            })}
+// ═══════════════════════════════════════════════════════
+// COMUNIDADE
+// ═══════════════════════════════════════════════════════
+function PainelComunidade({ user, posts, setPosts, unidadeId }) {
+  const [texto, setTexto] = useState("");
+  const [tipo,  setTipo]  = useState("progresso");
+  const tipoCfg = { progresso:{icon:"📈",label:"Progresso"}, dica:{icon:"💡",label:"Dica"}, conquista:{icon:"🏆",label:"Conquista"}, academia:{icon:"📢",label:"Aviso"} };
+  const filteredPosts = posts.filter(p => !unidadeId || p.unidade===unidadeId);
+
+  const publicar = () => {
+    if (!texto.trim()) return;
+    setPosts(p => [{ id:Date.now(),autor:user.nome,avatar:user.avatar,tipo,conteudo:texto,hora:hhmm(),likes:0,comentarios:[],unidade:unidadeId||"U1" }, ...p]);
+    setTexto("");
+  };
+
+  return (
+    <div className="stack">
+      <div className="card">
+        <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Partilhe o seu progresso ou dica…" style={{ width:"100%",background:"transparent",border:"none",color:C.t1,fontSize:13,resize:"none",outline:"none",fontFamily:"inherit",minHeight:60 }}/>
+        <GoldLine/>
+        <div className="flex justify-between items-center" style={{ gap:8 }}>
+          <div className="flex gap-6" style={{ flexWrap:"wrap" }}>
+            {Object.entries(tipoCfg).map(([k,v])=>(
+              <button key={k} onClick={()=>setTipo(k)} style={{ background:tipo===k?"rgba(201,151,62,.15)":"transparent",color:tipo===k?C.gold:C.t3,border:`1px solid ${tipo===k?"rgba(201,151,62,.4)":C.border}`,borderRadius:99,padding:"3px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit" }}>{v.icon} {v.label}</button>
+            ))}
           </div>
           <Btn small variant="gold" onClick={publicar}>Publicar</Btn>
         </div>
       </div>
-      {feed.map(post=>{
-        const cfg=tipoCfg[post.tipo]||{icon:"🔔",cor:DS.gold};
-        const lk=liked.includes(post.id);
-        const ab=expAberto===post.id;
-        return(
-          <div key={post.id} style={{background:DS.card,border:`0.5px solid ${DS.border}`,borderRadius:12,padding:"12px"}}>
-            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-              <Av nome={post.autor} size={32}/>
-              <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:5}}><p style={{margin:0,fontWeight:600,fontSize:12,color:DS.t1}}>{post.autor}</p><Badge cor={cfg.cor}>{cfg.icon}</Badge></div></div>
-              <span style={{fontSize:9,color:DS.t3}}>{post.hora}</span>
-            </div>
-            <p style={{margin:"0 0 8px",fontSize:11,color:DS.t2,lineHeight:1.6}}>{post.conteudo}</p>
-            <div style={{display:"flex",gap:12,borderTop:`0.5px solid ${DS.border}`,paddingTop:7}}>
-              <button onClick={()=>like(post.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:lk?"#D4537E":DS.t3,padding:0}}>{lk?"❤️":"🤍"} {post.likes}</button>
-              <button onClick={()=>setExpAberto(ab?null:post.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:DS.t3,padding:0}}>💬 {post.comentarios.length}</button>
-            </div>
-            {ab&&(
-              <div style={{marginTop:8,paddingTop:8,borderTop:`0.5px solid ${DS.border}`}}>
-                {post.comentarios.map((c,i)=><div key={i} style={{background:DS.cardH,borderRadius:7,padding:"5px 9px",marginBottom:5}}><p style={{margin:0,fontSize:11,color:DS.t2}}>{c}</p></div>)}
-                <div style={{display:"flex",gap:6,marginTop:6}}>
-                  <input value={novoC} onChange={e=>setNovoC(e.target.value)} onKeyDown={e=>e.key==="Enter"&&comentar(post.id)} placeholder="Comentar…" style={{flex:1,border:`0.5px solid ${DS.border}`,borderRadius:7,padding:"5px 9px",fontSize:11,background:DS.cardH,color:DS.t1,outline:"none"}}/>
-                  <Btn small variant="outline" onClick={()=>comentar(post.id)}>→</Btn>
-                </div>
-              </div>
-            )}
+      {filteredPosts.map(p => (
+        <PostCard key={p.id} p={p} setPosts={setPosts} tipoCfg={tipoCfg}/>
+      ))}
+    </div>
+  );
+}
+
+function PostCard({ p, setPosts, tipoCfg }) {
+  const [exp,  setExp]  = useState(false);
+  const cfg = tipoCfg[p.tipo] || tipoCfg.progresso;
+  return (
+    <div className="post-card">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex items-center gap-10">
+          <Av nome={p.autor} size={32}/>
+          <div>
+            <div style={{ fontWeight:600,fontSize:12,color:C.t1 }}>{p.autor}</div>
+            <div style={{ fontSize:10,color:C.t3 }}>{p.hora}</div>
           </div>
-        );
-      })}
+        </div>
+        <span style={{ fontSize:10,color:C.gold,background:"rgba(201,151,62,.1)",padding:"2px 8px",borderRadius:99,border:"1px solid rgba(201,151,62,.2)" }}>{cfg.icon} {cfg.label}</span>
+      </div>
+      <div style={{ fontSize:13,color:C.t2,lineHeight:1.55,marginBottom:10 }}>{p.conteudo}</div>
+      <div className="flex gap-12 items-center">
+        <button onClick={()=>setPosts(ps=>ps.map(x=>x.id===p.id?{...x,likes:x.likes+1}:x))} style={{ background:"none",border:"none",cursor:"pointer",color:C.t3,fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4 }}>❤️ {p.likes}</button>
+        <button onClick={()=>setExp(e=>!e)} style={{ background:"none",border:"none",cursor:"pointer",color:C.t3,fontSize:12,fontFamily:"inherit" }}>💬 {p.comentarios.length}</button>
+      </div>
+      {exp && (
+        <div style={{ marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}` }}>
+          {p.comentarios.map((c,i)=><div key={i} style={{ fontSize:11,color:C.t3,padding:"4px 0" }}>↳ {c}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// WIDGET ANIVERSARIANTES
+// ═══════════════════════════════════════════════════════
+function WidgetAniversariantes({ enviarNotifAluno, notifEnviadas, setNotifEnviadas }) {
+  const hoje = new Date();
+  const dd = String(hoje.getDate()).padStart(2,"0");
+  const mm = String(hoje.getMonth()+1).padStart(2,"0");
+  const aniv = ANIVERSARIOS.filter(a => { const [,am,ad]=a.dob.split("-"); return am===mm&&ad===dd; });
+  const anos = dob => hoje.getFullYear() - parseInt(dob.split("-")[0]);
+
+  const enviar = a => {
+    if (notifEnviadas.includes(a.email)) return;
+    enviarNotifAluno(a.email, { tipo:"academia", titulo:`🎂 Feliz Aniversário, ${a.nome.split(" ")[0]}!`, msg:`Toda a equipa FitCore deseja-lhe um Feliz Aniversário! 🎉 Hoje o treino é por nossa conta! 💪` });
+    setNotifEnviadas(p => [...p, a.email]);
+  };
+
+  useEffect(() => { aniv.forEach(a => { if (!notifEnviadas.includes(a.email)) enviar(a); }); }, []);
+
+  if (!aniv.length) return null;
+  return (
+    <div className="alert alert-gold" style={{ padding:14,borderRadius:12 }}>
+      <div className="flex items-center gap-10" style={{ marginBottom:12 }}>
+        <span style={{ fontSize:22 }}>🎂</span>
+        <div>
+          <div style={{ fontWeight:700,fontSize:13,color:C.gold }}>Aniversariantes de hoje</div>
+          <div style={{ fontSize:10,color:C.t3 }}>Mensagem automática enviada</div>
+        </div>
+      </div>
+      {aniv.map(a => (
+        <div key={a.email} className="flex items-center gap-10" style={{ background:C.cardH,borderRadius:9,padding:"9px 12px",marginBottom:6 }}>
+          <Av nome={a.nome} size={34}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:600,fontSize:12,color:C.t1 }}>{a.nome}</div>
+            <div style={{ fontSize:10,color:C.t3 }}>{anos(a.dob)} anos · Plano {a.plano}</div>
+          </div>
+          {notifEnviadas.includes(a.email) ? <Badge cor={C.ok}>✅ Enviado</Badge> : <Btn small variant="gold" onClick={()=>enviar(a)}>🎉 Enviar</Btn>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -689,322 +741,253 @@ function PainelComunidade({user,posts,setPosts,unidadeId}){
 // ═══════════════════════════════════════════════════════
 // INSCRIÇÃO
 // ═══════════════════════════════════════════════════════
-function gerarCodigo(nome,unidade){
-  const ini=nome.split(" ").map(n=>n[0]).join("").toUpperCase().slice(0,2);
-  const num=Math.floor(1000+Math.random()*9000);
-  return `FC${unidade.replace("U","")}-${ini}${num}`;
-}
-function gerarSenha(){
-  const c="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
-  return Array.from({length:10},()=>c[Math.floor(Math.random()*c.length)]).join("");
-}
+function Inscricao({ credenciais, setCredenciais, onLogin, onVoltar }) {
+  const [form, setForm] = useState({ nome:"",bi:"",dob:"",genero:"",telefone:"",email:"",objetivo:"",plano:"",unidade:"",foto:null });
+  const [erros, setErros] = useState({});
+  const [ok,    setOk]    = useState(null);
+  const f = (k,v) => setForm(p=>({...p,[k]:v}));
 
-function Inscricao({credenciais,setCredenciais,onLogin,onVoltar}){
-  const [passo,setPasso]=useState(1);
-  const [foto,setFoto]=useState(null);
-  const fileRef=useRef();
-  const [form,setForm]=useState({nome:"",bi:"",telefone:"",email:"",dob:"",genero:"",objetivo:"",plano:"Premium",unidade:"U1"});
-  const [erros,setErros]=useState({});
-  const [gerado,setGerado]=useState(null);
-  const [copiado,setCopiado]=useState(null);
-  const f=(k,v)=>setForm(p=>({...p,[k]:v}));
-  const validar=()=>{
-    const e={};
-    ["nome","bi","telefone","email","dob","genero","objetivo","plano","unidade"].forEach(k=>{if(!form[k].trim())e[k]="Obrigatório";});
-    if(form.email&&!form.email.includes("@"))e.email="E-mail inválido";
-    setErros(e);
-    return !Object.keys(e).length;
+  const gerarCodigo = n => {
+    const nome = (n||"XX").split(" ");
+    const ini  = (nome[0]?.[0]||"X") + (nome[1]?.[0]||"X");
+    return `FC1-${ini.toUpperCase()}${new Date().getFullYear()}`;
   };
-  const inscrever=()=>{
-    if(!validar())return;
-    const codigo=gerarCodigo(form.nome,form.unidade);
-    const senha=gerarSenha();
-    const email=form.email.trim().toLowerCase();
-    const avatar=form.nome.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
-    const novoAluno={senha,perfil:"aluno",nome:form.nome,unidade:form.unidade,plano:form.plano,avatar,aguaHoje:0,treinos:0,ausencias:0,status:"Ativo",codigo,foto:foto||null,bi:form.bi,telefone:form.telefone,dob:form.dob,genero:form.genero,objetivo:form.objetivo};
-    setCredenciais(prev=>({...prev,[email]:novoAluno}));
-    setGerado({...novoAluno,email});
-    setPasso(2);
+
+  const inscrever = () => {
+    const req = ["nome","bi","dob","genero","telefone","email","objetivo","plano","unidade"];
+    const e   = {};
+    req.forEach(k => { if (!form[k]) e[k] = "Obrigatório"; });
+    if (credenciais[form.email]) e.email = "E-mail já existe";
+    if (Object.keys(e).length) { setErros(e); return; }
+    const senha  = Math.random().toString(36).slice(2,8).toUpperCase();
+    const codigo = gerarCodigo(form.nome);
+    const novoUser = { senha, perfil:"aluno", nome:form.nome, unidade:form.unidade, plano:form.plano, avatar:initials(form.nome), aguaHoje:0, treinos:0, codigo, foto:form.foto };
+    setCredenciais(p => ({...p,[form.email]:novoUser}));
+    setOk({ email:form.email, senha, codigo });
   };
-  const copiar=(texto,chave)=>{navigator.clipboard?.writeText(texto).catch(()=>{});setCopiado(chave);setTimeout(()=>setCopiado(null),2000);};
-  const inpSt=(err)=>({display:"block",width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${err?DS.err:DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,boxSizing:"border-box",outline:"none"});
-  const Campo=({label,err,children})=>(
-    <div><label style={{fontSize:10,fontWeight:500,color:err?DS.err:DS.t3,display:"block",marginBottom:4}}>{label}{err&&<span style={{marginLeft:5,fontSize:9}}>— {err}</span>}</label>{children}</div>
-  );
-  const Secao=({titulo,children})=>(
-    <div style={{background:DS.card,borderRadius:12,padding:"1rem",border:`0.5px solid ${DS.border}`}}>
-      <p style={{margin:"0 0 10px",fontWeight:700,fontSize:10,color:DS.gold,textTransform:"uppercase",letterSpacing:.5}}>{titulo}</p>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>{children}</div>
+
+  const inpSt = err => ({ border:`1px solid ${err?C.err:C.border}` });
+  const Campo = ({ label, err, children }) => (
+    <div>
+      <div style={{ fontSize:11,color:err?C.err:C.t3,fontWeight:600,marginBottom:4 }}>{label}</div>
+      {children}
+      {err && <div style={{ fontSize:10,color:C.err,marginTop:2 }}>{err}</div>}
     </div>
   );
-  if(passo===2&&gerado){
-    const un=UNIDADES.find(u=>u.id===gerado.unidade)||UNIDADES[0];
-    return(
-      <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:440,margin:"0 auto"}}>
-        <div style={{textAlign:"center",padding:"1rem 0"}}>
-          <div style={{width:52,height:52,borderRadius:"50%",background:DS.ok+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 8px",border:`1px solid ${DS.ok}44`}}>✅</div>
-          <p style={{margin:0,fontWeight:800,fontSize:16,color:DS.t1}}>Inscrição concluída!</p>
-          <p style={{margin:"3px 0 0",fontSize:11,color:DS.t3}}>Credenciais geradas com sucesso.</p>
+
+  if (ok) return (
+    <div className="stack">
+      <div style={{ textAlign:"center",padding:"24px 0" }}>
+        <div style={{ fontSize:48,marginBottom:12 }}>✅</div>
+        <div style={{ fontWeight:800,fontSize:18,color:C.t1,marginBottom:4 }}>Aluno inscrito!</div>
+        <div style={{ fontSize:13,color:C.t3 }}>{form.nome}</div>
+      </div>
+      <div className="member-card">
+        <div className="flex justify-between items-center" style={{ marginBottom:16 }}>
+          <div>
+            <div style={{ fontSize:10,color:C.gold,letterSpacing:2,textTransform:"uppercase",fontWeight:600 }}>FitCore Enterprise</div>
+            <div style={{ fontWeight:800,fontSize:18,color:C.t1,marginTop:4 }}>{form.nome}</div>
+          </div>
+          <div style={{ width:48,height:48,borderRadius:12,background:`linear-gradient(135deg,${C.goldD},${C.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22 }}>🏋️</div>
         </div>
-        <div style={{background:DS.card,borderRadius:16,padding:"1.25rem",border:`1px solid ${DS.gold}55`,position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",top:-20,right:-20,width:70,height:70,borderRadius:"50%",background:DS.gold+"08"}}/>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-            <div><p style={{margin:0,fontSize:9,color:DS.t3,letterSpacing:1}}>FITCORE</p><p style={{margin:0,fontSize:8,color:DS.t3}}>Cartão de membro</p></div>
-            <Badge cor={planoCor[gerado.plano]||DS.gold}>{gerado.plano}</Badge>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-            {gerado.foto?<img src={gerado.foto} alt={gerado.nome} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",border:`1.5px solid ${DS.gold}66`}}/>:<Av nome={gerado.nome} size={46}/>}
-            <div><p style={{margin:0,fontWeight:700,fontSize:14,color:DS.t1}}>{gerado.nome}</p><p style={{margin:"2px 0",fontSize:10,color:DS.t3}}>{gerado.objetivo}</p><p style={{margin:0,fontSize:9,color:DS.t3}}>{un.nome}</p></div>
-          </div>
-          <div style={{background:DS.bg0,borderRadius:10,padding:"9px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`0.5px solid ${DS.gold}33`}}>
-            <div><p style={{margin:"0 0 2px",fontSize:8,color:DS.t3,textTransform:"uppercase",letterSpacing:.5}}>Código</p><p style={{margin:0,fontWeight:800,fontSize:17,color:DS.gold,letterSpacing:2}}>{gerado.codigo}</p></div>
-            <div style={{background:DS.bg0,borderRadius:7,padding:5,border:`0.5px solid ${DS.gold}33`}}><QRCode id={gerado.codigo} size={52}/></div>
-          </div>
+        <GoldLine/>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12 }}>
+          <Chip label="Código"  valor={ok.codigo}     cor={C.gold}/>
+          <Chip label="Plano"   valor={form.plano}    cor={planoCor[form.plano]||C.gold}/>
+          <Chip label="E-mail"  valor={ok.email}      cor={C.t2}/>
+          <Chip label="Senha"   valor={ok.senha}      cor={C.warn}/>
         </div>
-        <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-          <p style={{margin:"0 0 8px",fontWeight:700,fontSize:10,color:DS.gold,textTransform:"uppercase",letterSpacing:.5}}>🔐 Credenciais</p>
-          {[["E-mail",gerado.email,"email"],["Senha",gerado.senha,"senha"],["Código",gerado.codigo,"codigo"]].map(([label,valor,chave])=>(
-            <div key={chave} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:DS.cardH,borderRadius:8,padding:"8px 10px",marginBottom:5}}>
-              <div><p style={{margin:"0 0 1px",fontSize:9,color:DS.t3}}>{label}</p><p style={{margin:0,fontSize:11,fontWeight:700,fontFamily:"monospace",color:DS.t1}}>{valor}</p></div>
-              <Btn small variant={copiado===chave?"success":"outline"} onClick={()=>copiar(valor,chave)}>{copiado===chave?"✓":"Copiar"}</Btn>
-            </div>
+        <div style={{ marginTop:14,textAlign:"center" }}>
+          <QRCode id={ok.codigo} size={110}/>
+        </div>
+      </div>
+      <Btn full variant="outline" onClick={()=>onLogin({email:ok.email,...credenciais[ok.email]})}>Entrar como este aluno</Btn>
+      <Btn full variant="ghost" onClick={onVoltar}>← Voltar</Btn>
+    </div>
+  );
+
+  return (
+    <div className="stack">
+      <div className="flex items-center gap-10" style={{ marginBottom:4 }}>
+        <button onClick={onVoltar} style={{ background:"none",border:"none",cursor:"pointer",color:C.t3,fontSize:18,fontFamily:"inherit" }}>←</button>
+        <div style={{ fontWeight:700,fontSize:16,color:C.t1 }}>Inscrever novo aluno</div>
+      </div>
+      <GoldLine/>
+
+      {/* Foto */}
+      <div style={{ textAlign:"center",padding:"10px 0" }}>
+        {form.foto
+          ? <img src={form.foto} alt="foto" style={{ width:72,height:72,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.gold}` }}/>
+          : <div style={{ width:72,height:72,borderRadius:"50%",background:C.cardH,border:`2px dashed ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:28 }}>👤</div>
+        }
+        <label style={{ display:"block",marginTop:8,fontSize:11,color:C.gold,cursor:"pointer" }}>
+          + Adicionar foto
+          <input type="file" accept="image/*" hidden onChange={e=>{ const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>f("foto",ev.target.result);r.readAsDataURL(file); }}/>
+        </label>
+      </div>
+
+      {/* Dados pessoais */}
+      <div style={{ fontWeight:700,fontSize:12,color:C.gold,marginBottom:8 }}>📋 Dados pessoais</div>
+      <Campo label="Nome completo *" err={erros.nome}><input className={`input${erros.nome?" err":""}`} value={form.nome} onChange={e=>{f("nome",e.target.value);setErros(p=>({...p,nome:""}))}}/></Campo>
+      <Campo label="Nº do BI *" err={erros.bi}><input className={`input${erros.bi?" err":""}`} value={form.bi} onChange={e=>{f("bi",e.target.value);setErros(p=>({...p,bi:""}))}}/></Campo>
+      <Campo label="Data de nascimento *" err={erros.dob}><input type="date" className={`input${erros.dob?" err":""}`} value={form.dob} onChange={e=>{f("dob",e.target.value);setErros(p=>({...p,dob:""}))}}/></Campo>
+      <Campo label="Género *" err={erros.genero}>
+        <div className="flex gap-6">
+          {["Masculino","Feminino","Outro"].map(g=>(
+            <button key={g} onClick={()=>{f("genero",g);setErros(p=>({...p,genero:""}));}} style={{ flex:1,background:form.genero===g?"rgba(201,151,62,.15)":"transparent",color:form.genero===g?C.gold:C.t3,border:`1px solid ${form.genero===g?"rgba(201,151,62,.4)":C.border}`,borderRadius:8,padding:"8px 4px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:form.genero===g?600:400 }}>{g}</button>
           ))}
         </div>
-        <Btn full variant="gold" onClick={()=>onLogin({email:gerado.email,...gerado})}>Entrar na plataforma →</Btn>
-        <Btn full variant="ghost" onClick={()=>{setPasso(1);setGerado(null);setFoto(null);setForm({nome:"",bi:"",telefone:"",email:"",dob:"",genero:"",objetivo:"",plano:"Premium",unidade:"U1"});}}>+ Inscrever outro aluno</Btn>
-        {onVoltar&&<Btn full variant="ghost" onClick={onVoltar}>← Voltar ao painel</Btn>}
-      </div>
-    );
-  }
-  return(
-    <div style={{maxWidth:460,margin:"0 auto",display:"flex",flexDirection:"column",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"0.5rem 0"}}>
-        {onVoltar&&<Btn small variant="ghost" onClick={onVoltar}>← Voltar</Btn>}
-        <div><p style={{margin:0,fontWeight:700,fontSize:15,color:DS.t1}}>Nova inscrição</p><p style={{margin:0,fontSize:10,color:DS.t3}}>Preencha os dados do novo membro</p></div>
-      </div>
-      <div style={{background:DS.card,borderRadius:12,padding:"1rem",border:`0.5px solid ${DS.border}`,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-        <div style={{position:"relative",cursor:"pointer"}} onClick={()=>fileRef.current.click()}>
-          {foto?<img src={foto} alt="foto" style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",border:`2px solid ${DS.gold}66`}}/>
-            :<div style={{width:72,height:72,borderRadius:"50%",background:DS.cardH,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:`2px dashed ${DS.gold}44`,gap:3}}><span style={{fontSize:20}}>📷</span><span style={{fontSize:9,color:DS.gold}}>Foto</span></div>}
-          <div style={{position:"absolute",bottom:2,right:2,width:20,height:20,borderRadius:"50%",background:DS.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:DS.bg0}}>✏️</div>
+      </Campo>
+      <Campo label="Telefone *" err={erros.telefone}><input className={`input${erros.telefone?" err":""}`} value={form.telefone} placeholder="+244 9XX XXX XXX" onChange={e=>{f("telefone",e.target.value);setErros(p=>({...p,telefone:""}));}}/></Campo>
+      <Campo label="E-mail *" err={erros.email}><input className={`input${erros.email?" err":""}`} value={form.email} placeholder="nome@email.com" onChange={e=>{f("email",e.target.value);setErros(p=>({...p,email:""}));}}/></Campo>
+
+      <div style={{ fontWeight:700,fontSize:12,color:C.gold,marginTop:4,marginBottom:8 }}>🏋️ Plano & Objectivo</div>
+      <Campo label="Objectivo *" err={erros.objetivo}>
+        <div className="flex gap-6" style={{ flexWrap:"wrap" }}>
+          {["Perda de gordura","Ganho muscular","Condicionamento","Performance","Saúde geral"].map(o=>(
+            <button key={o} onClick={()=>{f("objetivo",o);setErros(p=>({...p,objetivo:""}));}} style={{ background:form.objetivo===o?"rgba(201,151,62,.15)":"transparent",color:form.objetivo===o?C.gold:C.t3,border:`1px solid ${form.objetivo===o?"rgba(201,151,62,.4)":C.border}`,borderRadius:99,padding:"5px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:form.objetivo===o?600:400 }}>{o}</button>
+          ))}
         </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setFoto(ev.target.result);r.readAsDataURL(f);}}/>
-        <p style={{margin:0,fontSize:9,color:DS.t3}}>Foto opcional para o cartão de acesso</p>
-      </div>
-      <Secao titulo="👤 Dados pessoais">
-        <Campo label="Nome completo *" err={erros.nome}><input value={form.nome} onChange={e=>{f("nome",e.target.value);setErros(p=>({...p,nome:""}));}} placeholder="Ex: Maria João Silva" style={inpSt(erros.nome)}/></Campo>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <Campo label="Nº do BI *" err={erros.bi}><input value={form.bi} onChange={e=>{f("bi",e.target.value);setErros(p=>({...p,bi:""}));}} placeholder="000000000LA000" style={inpSt(erros.bi)}/></Campo>
-          <Campo label="Data de nascimento *" err={erros.dob}><input type="date" value={form.dob} onChange={e=>{f("dob",e.target.value);setErros(p=>({...p,dob:""}));}} style={inpSt(erros.dob)}/></Campo>
+      </Campo>
+      <Campo label="Plano *" err={erros.plano}>
+        <div className="flex gap-8">
+          {[["Standard","KZ 12k",C.t2],["Premium","KZ 18k",C.gold],["Elite","KZ 28k",C.goldL]].map(([p,pr,cor])=>(
+            <button key={p} onClick={()=>{f("plano",p);setErros(q=>({...q,plano:""}));}} style={{ flex:1,background:form.plano===p?cor+"20":"transparent",color:form.plano===p?cor:C.t3,border:`2px solid ${form.plano===p?cor:C.border}`,borderRadius:9,padding:"10px 4px",fontSize:11,cursor:"pointer",textAlign:"center",fontFamily:"inherit" }}>
+              <div style={{ fontWeight:700,fontSize:12 }}>{p}</div>
+              <div style={{ fontSize:10,opacity:.8,marginTop:2 }}>{pr}/mês</div>
+            </button>
+          ))}
         </div>
-        <Campo label="Género *" err={erros.genero}>
-          <div style={{display:"flex",gap:6}}>
-            {["Masculino","Feminino","Outro"].map(g=>(
-              <button key={g} onClick={()=>{f("genero",g);setErros(p=>({...p,genero:""}));}} style={{flex:1,background:form.genero===g?DS.gold+"22":"transparent",color:form.genero===g?DS.gold:DS.t3,border:`1px solid ${form.genero===g?DS.gold:DS.border}`,borderRadius:7,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:form.genero===g?600:400}}>{g}</button>
-            ))}
-          </div>
-        </Campo>
-        <Campo label="Telefone *" err={erros.telefone}><input value={form.telefone} onChange={e=>{f("telefone",e.target.value);setErros(p=>({...p,telefone:""}));}} placeholder="+244 9XX XXX XXX" style={inpSt(erros.telefone)}/></Campo>
-        <Campo label="E-mail *" err={erros.email}><input value={form.email} onChange={e=>{f("email",e.target.value);setErros(p=>({...p,email:""}));}} placeholder="nome@email.com" style={inpSt(erros.email)}/></Campo>
-      </Secao>
-      <Secao titulo="🏋️ Plano & Objectivo">
-        <Campo label="Objectivo *" err={erros.objetivo}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {["Perda de gordura","Ganho muscular","Condicionamento","Performance","Saúde geral"].map(o=>(
-              <button key={o} onClick={()=>{f("objetivo",o);setErros(p=>({...p,objetivo:""}));}} style={{background:form.objetivo===o?DS.gold+"22":"transparent",color:form.objetivo===o?DS.gold:DS.t3,border:`0.5px solid ${form.objetivo===o?DS.gold:DS.border}`,borderRadius:20,padding:"5px 11px",fontSize:11,cursor:"pointer",fontWeight:form.objetivo===o?600:400}}>{o}</button>
-            ))}
-          </div>
-        </Campo>
-        <Campo label="Plano *" err={erros.plano}>
-          <div style={{display:"flex",gap:6}}>
-            {[["Standard","KZ 12k",DS.t2],["Premium","KZ 18k",DS.gold],["Elite","KZ 28k",DS.goldL]].map(([p,pr,c])=>(
-              <button key={p} onClick={()=>{f("plano",p);setErros(q=>({...q,plano:""}));}} style={{flex:1,background:form.plano===p?c+"22":"transparent",color:form.plano===p?c:DS.t3,border:`1px solid ${form.plano===p?c:DS.border}`,borderRadius:9,padding:"8px 4px",fontSize:11,cursor:"pointer",textAlign:"center"}}>
-                <p style={{margin:"0 0 2px",fontWeight:700,fontSize:12}}>{p}</p>
-                <p style={{margin:0,fontSize:10,opacity:.8}}>{pr}/mês</p>
-              </button>
-            ))}
-          </div>
-        </Campo>
-        <Campo label="Unidade *" err={erros.unidade}>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            {UNIDADES.map(u=>(
-              <button key={u.id} onClick={()=>{f("unidade",u.id);setErros(p=>({...p,unidade:""}));}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:form.unidade===u.id?DS.gold+"18":"transparent",border:`1px solid ${form.unidade===u.id?DS.gold:DS.border}`,borderRadius:9,padding:"8px 12px",cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:6,height:6,borderRadius:"50%",background:form.unidade===u.id?DS.gold:DS.t3}}/><span style={{fontSize:11,color:form.unidade===u.id?DS.gold:DS.t2,fontWeight:form.unidade===u.id?600:400}}>{u.nome}</span></div>
-                <span style={{fontSize:9,color:DS.t3}}>{u.cidade}</span>
-              </button>
-            ))}
-          </div>
-        </Campo>
-      </Secao>
-      {Object.keys(erros).length>0&&<div style={{background:DS.err+"14",borderRadius:8,padding:"8px 12px",border:`0.5px solid ${DS.err}44`}}><p style={{margin:0,fontSize:11,color:DS.err}}>⚠️ Corrija os campos assinalados.</p></div>}
-      <Btn full variant="gold" onClick={inscrever}>Inscrever e gerar credenciais ✨</Btn>
+      </Campo>
+      <Campo label="Unidade *" err={erros.unidade}>
+        {UNIDADES.map(u=>(
+          <button key={u.id} onClick={()=>{f("unidade",u.id);setErros(p=>({...p,unidade:""}));}} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",background:form.unidade===u.id?"rgba(201,151,62,.12)":"transparent",border:`1px solid ${form.unidade===u.id?"rgba(201,151,62,.4)":C.border}`,borderRadius:9,padding:"9px 12px",marginBottom:6,cursor:"pointer",width:"100%",fontFamily:"inherit" }}>
+            <span style={{ fontSize:12,color:form.unidade===u.id?C.gold:C.t2,fontWeight:form.unidade===u.id?600:400 }}>{u.nome}</span>
+            <span style={{ fontSize:10,color:C.t3 }}>{u.cidade}</span>
+          </button>
+        ))}
+      </Campo>
+
+      {Object.keys(erros).length > 0 && <div className="alert alert-err">⚠️ Corrija os campos assinalados.</div>}
+      <Btn full variant="gold" onClick={inscrever}>✨ Inscrever e gerar credenciais</Btn>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════
-// PAINÉIS
+// PERSONAL TRAINER PANEL
 // ═══════════════════════════════════════════════════════
-function PainelAluno({user,posts,setPosts,presencaHoje,onPresenca,notifPerfil,marcarLida}){
-  const naoLidas=(notifPerfil||[]).filter(n=>!n.lida).length;
-  const [aba,setAba]=useState("inicio");
-  const [agua,setAgua]=useState(user.aguaHoje||0);
-  const codigo=user.codigo||("FC1-"+user.avatar);
-  const abas=[{id:"inicio",l:"Início"},{id:"checkin",l:"Check-in"},{id:"notifs",l:`🔔${naoLidas>0?` (${naoLidas})`:""}`},{id:"treino",l:"Treino"},{id:"agua",l:"Água"},{id:"comunidade",l:"Feed"}];
-  return(
-    <div>
-      <div style={{background:DS.card,borderRadius:12,padding:"12px",marginBottom:12,border:`0.5px solid ${DS.gold}33`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <Av nome={user.nome} foto={user.foto} size={44}/>
-          <div style={{flex:1}}>
-            <p style={{margin:0,fontWeight:700,fontSize:15,color:DS.t1}}>Olá, {user.nome.split(" ")[0]} 👋</p>
-            <div style={{display:"flex",gap:5,marginTop:3}}><Badge cor={planoCor[user.plano]||DS.gold}>{user.plano}</Badge><Badge cor={DS.ok}>● Activo</Badge></div>
-          </div>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${DS.border}`,marginBottom:12,overflowX:"auto"}}>
-        {abas.map(a=><button key={a.id} onClick={()=>setAba(a.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"8px 11px",fontSize:11,fontWeight:aba===a.id?700:400,color:aba===a.id?DS.gold:DS.t3,borderBottom:aba===a.id?`2px solid ${DS.gold}`:"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap"}}>{a.l}</button>)}
-      </div>
-      {aba==="inicio"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {naoLidas>0&&(
-            <div onClick={()=>setAba("notifs")} style={{background:DS.err+"14",borderRadius:10,padding:"10px 12px",border:`1px solid ${DS.err}44`,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
-              <div style={{width:30,height:30,borderRadius:"50%",background:DS.err,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0}}>{naoLidas}</div>
-              <div style={{flex:1}}><p style={{margin:0,fontWeight:700,fontSize:12,color:DS.err}}>{naoLidas} notificação(ões) por ler</p><p style={{margin:0,fontSize:10,color:DS.err,opacity:.7}}>Pode incluir cobranças da academia.</p></div>
-              <span style={{color:DS.err,fontSize:14}}>›</span>
-            </div>
-          )}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <Chip label="Código" valor={codigo} cor={DS.gold}/>
-            <Chip label="Treinos/mês" valor={user.treinos||0} cor={DS.ok}/>
-          </div>
-          <div style={{background:DS.card,borderRadius:10,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-            <p style={{margin:"0 0 5px",fontWeight:600,fontSize:11,color:DS.t2}}>💧 Hidratação hoje</p>
-            <GoldBar valor={agua} max={aguaPorPlano[user.plano]||3} height={6}/>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:DS.t3,marginTop:3,marginBottom:8}}><span>{agua.toFixed(1)}L</span><span>{aguaPorPlano[user.plano]||3}L</span></div>
-            <div style={{display:"flex",gap:5}}>
-              {[0.25,0.5,1].map(q=><Btn key={q} small full variant="outline" onClick={()=>setAgua(a=>Math.min(a+q,aguaPorPlano[user.plano]||3))}>+{q}L</Btn>)}
-            </div>
-          </div>
-          <div style={{background:DS.card,borderRadius:10,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-            <p style={{margin:"0 0 7px",fontWeight:600,fontSize:11,color:DS.t2}}>Notificações recentes</p>
-            {[{i:"💧",t:"Beba 0.5L de água agora",h:"10:00"},{i:"🏋️",t:"Treino hoje: Peito & Tríceps",h:"07:30"},{i:"📢",t:"Academia fecha às 21h hoje",h:"06:00"}].map((n,i)=>(
-              <div key={i} style={{display:"flex",gap:8,padding:"5px 0",borderBottom:`0.5px solid ${DS.border}`,alignItems:"center"}}>
-                <span style={{fontSize:13}}>{n.i}</span><p style={{margin:0,fontSize:11,color:DS.t2,flex:1}}>{n.t}</p><span style={{fontSize:9,color:DS.t3}}>{n.h}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {aba==="checkin"&&<CheckinCard user={user} codigo={codigo} onPresenca={onPresenca} presencaHoje={presencaHoje} isProf={false}/>}
-      {aba==="notifs"&&<PainelNotifs notifs={notifPerfil||[]} marcarLida={marcarLida}/>}
-      {aba==="treino"&&<PlanoDeTreino plano={user.plano}/>}
-      {aba==="agua"&&<PainelAgua user={user} agua={agua} setAgua={setAgua}/>}
-      {aba==="comunidade"&&<PainelComunidade user={user} posts={posts} setPosts={setPosts}/>}
-    </div>
-  );
-}
+function PainelPersonal({ user }) {
+  const [exSel,    setExSel]    = useState(EXERCICIOS[0]);
+  const [histEx,   setHistEx]   = useState(EXERCICIOS);
+  const [alunoSel, setAlunoSel] = useState({ id:"A001", nome:"Ana Moreira",  avatar:"AM" });
+  const [novaC,    setNovaC]    = useState("");
+  const [novasR,   setNovasR]   = useState("");
+  const [msg,      setMsg]      = useState(null);
 
-function PainelGestor({user,unidades,unidadeAtual,setUnidadeAtual,posts,setPosts,credenciais,setCredenciais,onNovoAluno,presencaHoje,onPresenca,mensalidades,setMensalidades,enviarNotifAluno}){
-  const isTrainer=user.perfil==="trainer";
-  const [aba,setAba]=useState(isTrainer?"checkin":"unidades");
-  const [mostrarInscricao,setMostrarInscricao]=useState(false);
-  const [notifAnivEnviadas,setNotifAnivEnviadas]=useState([]);
-  const [exSel,setExSel]=useState(EXERCICIOS[0]);
-  const [histEx,setHistEx]=useState(EXERCICIOS);
-  const [alunoSel,setAlunoSel]=useState({id:"A001",nome:"Ana Moreira",avatar:"AM"});
-  const [novaC,setNovaC]=useState("");
-  const [novasR,setNovasR]=useState("");
-  const [msg,setMsg]=useState(null);
-  const emAtrasoCount=mensalidades.filter(m=>!m.pago&&diasAtraso(m.vencimento)>0).length;
-  const abas=isTrainer
-    ?[{id:"checkin",l:"Check-in"},{id:"treino",l:"Personal"},{id:"comunidade",l:"Feed"}]
-    :[{id:"unidades",l:"Dashboard"},{id:"financeiro",l:`Finanças${emAtrasoCount>0?" 🔴":""}`},{id:"comunidade",l:"Feed"}];
-  const exA=histEx.find(e=>e.nome===exSel.nome)||exSel;
-  const ultima=exA.series[exA.series.length-1];
-  const primeira=exA.series[0];
-  const evo=((ultima.c-primeira.c)/primeira.c*100).toFixed(1);
-  const registar=()=>{
-    const c=parseFloat(novaC),r=parseInt(novasR);
-    if(!c||!r)return;
-    setHistEx(prev=>prev.map(e=>e.nome===exA.nome?{...e,series:[...e.series,{s:ultima.s+1,c,r}]}:e));
-    setMsg(`✅ ${c}kg × ${r} reps`);setNovaC("");setNovasR("");
+  const exA    = histEx.find(e => e.nome===exSel.nome) || exSel;
+  const ultima = exA.series[exA.series.length-1];
+  const evo    = ((ultima.c - exA.series[0].c) / exA.series[0].c * 100).toFixed(1);
+
+  const registar = () => {
+    const c=parseFloat(novaC), r=parseInt(novasR);
+    if (!c||!r) return;
+    setHistEx(prev => prev.map(e => e.nome===exA.nome?{...e,series:[...e.series,{s:ultima.s+1,c,r}]}:e));
+    setMsg(`✅ ${c}kg × ${r} reps registados`);
+    setNovaC(""); setNovasR("");
     setTimeout(()=>setMsg(null),3000);
   };
-  const codigo=user.codigo||`FC-PT-${user.avatar}`;
-  if(mostrarInscricao) return <Inscricao credenciais={credenciais} setCredenciais={setCredenciais} onLogin={u=>{onNovoAluno(u);setMostrarInscricao(false);}} onVoltar={()=>setMostrarInscricao(false)}/>;
-  return(
-    <div>
-      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${DS.border}`,marginBottom:12}}>
-        {abas.map(a=><button key={a.id} onClick={()=>setAba(a.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"8px 14px",fontSize:11,fontWeight:aba===a.id?700:400,color:aba===a.id?DS.gold:DS.t3,borderBottom:aba===a.id?`2px solid ${DS.gold}`:"2px solid transparent",marginBottom:-1,whiteSpace:"nowrap"}}>{a.l}</button>)}
+
+  return (
+    <div className="stack">
+      <div className="flex gap-6" style={{ flexWrap:"wrap" }}>
+        {[{id:"A001",nome:"Ana Moreira",avatar:"AM"},{id:"A004",nome:"Bruno Silva",avatar:"BS"},{id:"A002",nome:"Carlos Lopes",avatar:"CL"}].map(a=>(
+          <div key={a.id} onClick={()=>setAlunoSel(a)} className="flex items-center gap-8" style={{ padding:"6px 12px",borderRadius:99,border:`1px solid ${alunoSel.id===a.id?"rgba(201,151,62,.5)":C.border}`,background:alunoSel.id===a.id?"rgba(201,151,62,.1)":C.card,cursor:"pointer" }}>
+            <Av nome={a.nome} size={24}/><span style={{ fontSize:12,color:alunoSel.id===a.id?C.gold:C.t2,fontWeight:alunoSel.id===a.id?600:400 }}>{a.nome.split(" ")[0]}</span>
+          </div>
+        ))}
       </div>
-      {aba==="unidades"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <WidgetAniversariantes enviarNotifAluno={enviarNotifAluno} notifEnviadas={notifAnivEnviadas} setNotifEnviadas={setNotifAnivEnviadas}/>
-          <Btn full variant="gold" onClick={()=>setMostrarInscricao(true)}>✨ Inscrever novo aluno</Btn>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
-            {[["248","Alunos activos",DS.gold],["84%","Retenção",DS.ok],["KZ 4.2M","Receita mensal",DS.gold],[emAtrasoCount+"","Em atraso",DS.err]].map(([v,l,c])=>(
-              <div key={l} style={{background:DS.card,border:`0.5px solid ${DS.border}`,borderRadius:10,padding:"10px 12px"}}>
-                <p style={{margin:"0 0 2px",fontSize:9,color:DS.t3,textTransform:"uppercase",letterSpacing:.5}}>{l}</p>
-                <p style={{margin:0,fontSize:18,fontWeight:700,color:c}}>{v}</p>
-              </div>
-            ))}
+      <div className="flex gap-6" style={{ flexWrap:"wrap" }}>
+        {histEx.map(e=>(
+          <button key={e.nome} onClick={()=>setExSel(e)} style={{ background:exSel.nome===e.nome?"rgba(201,151,62,.15)":"transparent",color:exSel.nome===e.nome?C.gold:C.t3,border:`1px solid ${exSel.nome===e.nome?"rgba(201,151,62,.4)":C.border}`,borderRadius:99,padding:"4px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:exSel.nome===e.nome?600:400 }}>{e.nome}</button>
+        ))}
+      </div>
+      <div className="card">
+        <div className="flex justify-between items-center" style={{ marginBottom:12 }}>
+          <div>
+            <div style={{ fontWeight:700,fontSize:14,color:C.t1 }}>{exA.nome}</div>
+            <div style={{ fontSize:11,color:C.t3 }}>{exA.grupo} · {alunoSel.nome.split(" ")[0]}</div>
           </div>
-          {unidades.map(u=>{
-            const sel=unidadeAtual.id===u.id;
-            return(
-              <div key={u.id} onClick={()=>setUnidadeAtual(u)} style={{background:DS.card,border:`1px solid ${sel?DS.gold:DS.border}`,borderRadius:12,padding:"12px",cursor:"pointer"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:7,height:7,borderRadius:"50%",background:sel?DS.gold:DS.t3}}/><p style={{margin:0,fontWeight:600,fontSize:12,color:sel?DS.gold:DS.t1}}>{u.nome}</p></div>
-                  {sel&&<Badge cor={DS.gold}>Activa</Badge>}
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-                  {[["Alunos",u.alunos,DS.t1],["KZ "+u.receita,"Receita",DS.t1],[u.presenca+"%","Presença",u.presenca>=80?DS.ok:u.presenca>=70?DS.gold:DS.err]].map(([v,l,c])=>(
-                    <div key={l} style={{background:DS.cardH,borderRadius:7,padding:"6px 8px"}}><p style={{margin:0,fontSize:9,color:DS.t3}}>{l}</p><p style={{margin:0,fontSize:12,fontWeight:600,color:c}}>{v}</p></div>
-                  ))}
-                </div>
-                <div style={{marginTop:7}}><MiniBar valor={u.presenca} max={100} cor={u.presenca>=80?DS.ok:u.presenca>=70?DS.gold:DS.err}/></div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {aba==="financeiro"&&<ModFinanceiro mensalidades={mensalidades} setMensalidades={setMensalidades} enviarNotifAluno={enviarNotifAluno}/>}
-      {aba==="checkin"&&<CheckinCard user={user} codigo={codigo} onPresenca={onPresenca} presencaHoje={presencaHoje} isProf={isTrainer}/>}
-      {aba==="treino"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {[{id:"A001",nome:"Ana Moreira",avatar:"AM"},{id:"A004",nome:"Bruno Silva",avatar:"BS"},{id:"A002",nome:"Carlos Lopes",avatar:"CL"}].map(a=>(
-              <div key={a.id} onClick={()=>setAlunoSel(a)} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 12px",borderRadius:20,border:`1px solid ${alunoSel.id===a.id?DS.gold:DS.border}`,background:alunoSel.id===a.id?DS.gold+"18":DS.card,cursor:"pointer"}}>
-                <Av nome={a.nome} size={22}/><p style={{margin:0,fontSize:11,color:alunoSel.id===a.id?DS.gold:DS.t2,fontWeight:alunoSel.id===a.id?600:400}}>{a.nome.split(" ")[0]}</p>
-              </div>
-            ))}
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {histEx.map(e=><button key={e.nome} onClick={()=>setExSel(e)} style={{background:exSel.nome===e.nome?DS.gold+"22":"transparent",color:exSel.nome===e.nome?DS.gold:DS.t3,border:`0.5px solid ${exSel.nome===e.nome?DS.gold:DS.border}`,borderRadius:20,padding:"4px 12px",fontSize:11,cursor:"pointer",fontWeight:exSel.nome===e.nome?600:400}}>{e.nome}</button>)}
-          </div>
-          <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
-              <div><p style={{margin:0,fontWeight:700,fontSize:13,color:DS.t1}}>{exA.nome}</p><p style={{margin:0,fontSize:10,color:DS.t3}}>{exA.grupo} · {alunoSel.nome.split(" ")[0]}</p></div>
-              <div style={{textAlign:"right"}}><p style={{margin:0,fontSize:19,fontWeight:800,color:DS.gold}}>+{evo}%</p><p style={{margin:0,fontSize:9,color:DS.t3}}>evolução</p></div>
-            </div>
-            <LineChart series={exA.series}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:10}}>
-              {[["Inicial",primeira.c+"kg",DS.t3],["Actual",ultima.c+"kg",DS.gold],["Recorde",Math.max(...exA.series.map(s=>s.c))+"kg",DS.ok]].map(([l,v,c])=><Chip key={l} label={l} valor={v} cor={c}/>)}
-            </div>
-          </div>
-          <div style={{background:DS.card,borderRadius:12,padding:"12px",border:`0.5px solid ${DS.border}`}}>
-            <p style={{margin:"0 0 8px",fontWeight:600,fontSize:11,color:DS.t2}}>Registar sessão</p>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-              <div><p style={{margin:"0 0 3px",fontSize:9,color:DS.t3}}>Carga (kg)</p><input type="number" value={novaC} onChange={e=>setNovaC(e.target.value)} placeholder={`Ex: ${ultima.c+2.5}`} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:`0.5px solid ${DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,boxSizing:"border-box",outline:"none"}}/></div>
-              <div><p style={{margin:"0 0 3px",fontSize:9,color:DS.t3}}>Repetições</p><input type="number" value={novasR} onChange={e=>setNovasR(e.target.value)} placeholder={`Ex: ${ultima.r}`} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:`0.5px solid ${DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,boxSizing:"border-box",outline:"none"}}/></div>
-            </div>
-            <Btn full variant="gold" onClick={registar}>+ Registar sessão</Btn>
-            {msg&&<p style={{margin:"6px 0 0",fontSize:11,color:DS.ok,fontWeight:500}}>{msg}</p>}
+          <div style={{ textAlign:"right" }}>
+            <div style={{ fontSize:22,fontWeight:800,color:C.ok }}>+{evo}%</div>
+            <div style={{ fontSize:9,color:C.t3 }}>evolução</div>
           </div>
         </div>
-      )}
-      {aba==="comunidade"&&<PainelComunidade user={user} posts={posts} setPosts={setPosts} unidadeId={unidadeAtual.id}/>}
+        <LineChart series={exA.series}/>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:12 }}>
+          <Chip label="Inicial" valor={exA.series[0].c+"kg"} cor={C.t3}/>
+          <Chip label="Actual"  valor={ultima.c+"kg"}         cor={C.gold}/>
+          <Chip label="Recorde" valor={Math.max(...exA.series.map(s=>s.c))+"kg"} cor={C.ok}/>
+        </div>
+      </div>
+      <div className="card">
+        <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:10 }}>Registar sessão</div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:10,color:C.t3,marginBottom:4 }}>Carga (kg)</div>
+            <input type="number" className="input" value={novaC} onChange={e=>setNovaC(e.target.value)} placeholder={`Ex: ${ultima.c+2.5}`}/>
+          </div>
+          <div>
+            <div style={{ fontSize:10,color:C.t3,marginBottom:4 }}>Repetições</div>
+            <input type="number" className="input" value={novasR} onChange={e=>setNovasR(e.target.value)} placeholder={`Ex: ${ultima.r}`}/>
+          </div>
+        </div>
+        <Btn full variant="gold" onClick={registar}>+ Registar sessão</Btn>
+        {msg && <div className="alert alert-ok" style={{ marginTop:8 }}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD GESTOR
+// ═══════════════════════════════════════════════════════
+function DashboardGestor({ unidades, unidadeAtual, enviarNotifAluno }) {
+  const [notifAnivEnviadas, setNotifAnivEnviadas] = useState([]);
+  const emAtrasoCount = initMensalidades.filter(m => !m.pago && diasAt(m.vencimento) > 0).length;
+
+  return (
+    <div className="stack">
+      <WidgetAniversariantes enviarNotifAluno={enviarNotifAluno} notifEnviadas={notifAnivEnviadas} setNotifEnviadas={setNotifAnivEnviadas}/>
+      <div className="kpi-grid-4">
+        {[["248","Alunos activos",C.gold],["84%","Retenção",C.ok],["KZ 11.5M","Receita total",C.goldL],[emAtrasoCount+" em atraso","Cobranças",C.err]].map(([v,l,cor])=>(
+          <div key={l} className="kpi-card">
+            <div className="kpi-label">{l}</div>
+            <div className="kpi-value" style={{ color:cor, fontSize:"1.2rem" }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontWeight:700,fontSize:13,color:C.t1,marginTop:4 }}>Unidades</div>
+      {unidades.map(u => {
+        const sel = unidadeAtual.id===u.id;
+        return (
+          <div key={u.id} className="card" style={{ borderLeft:`3px solid ${sel?C.gold:C.border}` }}>
+            <div className="flex justify-between items-center" style={{ marginBottom:10 }}>
+              <div>
+                <div style={{ fontWeight:600,fontSize:13,color:sel?C.gold:C.t1 }}>FitCore {u.nome}</div>
+                <div style={{ fontSize:11,color:C.t3 }}>{u.cidade}</div>
+              </div>
+              {sel && <Badge cor={C.gold}>Activa</Badge>}
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8 }}>
+              <Chip label="Alunos"   valor={u.alunos}        cor={C.t1}/>
+              <Chip label="Receita"  valor={"KZ "+u.receita}  cor={C.t1}/>
+              <Chip label="Presença" valor={u.presenca+"%"}   cor={u.presenca>=80?C.ok:u.presenca>=70?C.gold:C.err}/>
+            </div>
+            <Bar valor={u.presenca} max={100} height={4}/>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1012,142 +995,292 @@ function PainelGestor({user,unidades,unidadeAtual,setUnidadeAtual,posts,setPosts
 // ═══════════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════════
-function LoginScreen({credenciais,onLogin}){
-  const [email,setEmail]=useState("");
-  const [senha,setSenha]=useState("");
-  const [showS,setShowS]=useState(false);
-  const [erro,setErro]=useState("");
-  const [loading,setLoading]=useState(false);
-  const tentar=()=>{
-    setErro("");setLoading(true);
-    setTimeout(()=>{
+function LoginScreen({ credenciais, onLogin }) {
+  const [email,   setEmail]   = useState("");
+  const [senha,   setSenha]   = useState("");
+  const [showS,   setShowS]   = useState(false);
+  const [erro,    setErro]    = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const tentar = () => {
+    setErro(""); setLoading(true);
+    setTimeout(() => {
       setLoading(false);
-      const u=credenciais[email.trim().toLowerCase()];
-      if(!u){setErro("E-mail não encontrado.");return;}
-      if(u.senha!==senha){setErro("Senha incorrecta.");return;}
-      onLogin({email:email.trim().toLowerCase(),...u});
-    },900);
+      const u = credenciais[email.trim().toLowerCase()];
+      if (!u) { setErro("E-mail não encontrado."); return; }
+      if (u.senha !== senha) { setErro("Senha incorrecta."); return; }
+      onLogin({ email:email.trim().toLowerCase(), ...u });
+    }, 800);
   };
-  const demo=e=>{setEmail(e);setSenha(credenciais[e]?.senha||"");setErro("");};
-  return(
-    <div style={{minHeight:"100vh",background:DS.bg0,color:DS.t1,padding:"1rem 1rem 3rem"}}>
-      {/* hero */}
-      <div style={{textAlign:"center",padding:"2.5rem 0 2rem"}}>
-        <div style={{width:70,height:70,borderRadius:18,background:`linear-gradient(135deg,${DS.goldD},${DS.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,margin:"0 auto 12px",boxShadow:`0 6px 28px ${DS.gold}44`}}>🏋️</div>
-        <p style={{margin:"0 0 4px",fontWeight:800,fontSize:28,letterSpacing:-1,color:DS.t1}}>FitCore</p>
-        <p style={{margin:0,fontSize:12,color:DS.t3,letterSpacing:.3}}>A academia mais inteligente de Angola</p>
+
+  const demo = e => { setEmail(e); setSenha(credenciais[e]?.senha||""); setErro(""); };
+
+  return (
+    <div className="login-page">
+      <div className="login-hero">
+        <div style={{ width:72,height:72,borderRadius:18,background:`linear-gradient(135deg,${C.goldD},${C.gold})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:`0 8px 32px rgba(201,151,62,.35)` }}>🏋️</div>
+        <h1 style={{ fontSize:"2rem",letterSpacing:"-.04em",marginBottom:6 }}>FitCore</h1>
+        <p style={{ fontSize:13,color:C.t3,letterSpacing:.3,marginBottom:0 }}>A academia mais inteligente de Angola</p>
         <GoldLine/>
       </div>
-      {/* 5 motivos */}
-      <div style={{maxWidth:460,margin:"0 auto 2rem"}}>
-        <p style={{fontWeight:700,fontSize:14,textAlign:"center",margin:"0 0 12px",color:DS.gold,letterSpacing:.3}}>5 razões para treinar connosco</p>
-        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+
+      <div className="login-body">
+        {/* 5 motivos */}
+        <div style={{ margin:"20px 0" }}>
+          <p style={{ fontWeight:700,fontSize:13,color:C.gold,marginBottom:12,textAlign:"center",letterSpacing:.3 }}>5 razões para treinar connosco</p>
           {MOTIVOS.map((m,i)=>(
-            <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",background:DS.card,borderRadius:10,padding:"10px 12px",border:`0.5px solid ${DS.border}`}}>
-              <div style={{width:36,height:36,borderRadius:8,background:DS.gold+"14",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:`0.5px solid ${DS.gold}22`}}>{m.icon}</div>
-              <div><p style={{margin:"0 0 2px",fontWeight:600,fontSize:12,color:DS.t1}}>{m.t}</p><p style={{margin:0,fontSize:11,color:DS.t3,lineHeight:1.4}}>{m.d}</p></div>
+            <div key={i} className="flex items-start gap-12" style={{ background:C.card,borderRadius:10,padding:"11px 13px",border:`1px solid ${C.border}`,marginBottom:6 }}>
+              <div style={{ width:36,height:36,borderRadius:8,background:"rgba(201,151,62,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>{m.icon}</div>
+              <div>
+                <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:2 }}>{m.t}</div>
+                <div style={{ fontSize:11,color:C.t3,lineHeight:1.5 }}>{m.d}</div>
+              </div>
             </div>
           ))}
         </div>
-      </div>
-      {/* planos */}
-      <div style={{maxWidth:460,margin:"0 auto 2rem"}}>
-        <p style={{fontWeight:700,fontSize:14,textAlign:"center",margin:"0 0 12px",color:DS.gold,letterSpacing:.3}}>Planos de adesão</p>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {PLANOS_DISPLAY.map((p,i)=>(
-            <div key={i} style={{borderRadius:12,border:`1.5px solid ${p.destaque?DS.gold:DS.border}`,padding:"12px 16px",background:p.destaque?DS.gold+"0A":DS.card,position:"relative"}}>
-              {p.destaque&&<div style={{position:"absolute",top:-9,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${DS.goldD},${DS.gold})`,color:DS.bg0,fontSize:8,padding:"2px 12px",borderRadius:20,fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>MAIS POPULAR</div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <p style={{margin:0,fontWeight:800,fontSize:14,color:p.cor}}>{p.nome}</p>
-                <div style={{textAlign:"right"}}><p style={{margin:0,fontWeight:800,fontSize:17,color:p.cor}}>{p.preco}</p><p style={{margin:0,fontSize:8,color:DS.t3}}>/mês</p></div>
+
+        {/* Planos */}
+        <p style={{ fontWeight:700,fontSize:13,color:C.gold,marginBottom:12,textAlign:"center",letterSpacing:.3 }}>Planos de adesão</p>
+        <div className="stack" style={{ marginBottom:24 }}>
+          {PLANOS.map((p,i)=>(
+            <div key={i} style={{ borderRadius:12,border:`1.5px solid ${p.destaque?C.gold:C.border}`,padding:"13px 16px",background:p.destaque?"rgba(201,151,62,.05)":C.card,position:"relative" }}>
+              {p.destaque && <div style={{ position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${C.goldD},${C.gold})`,color:C.bg,fontSize:8,padding:"2px 14px",borderRadius:99,fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap" }}>MAIS POPULAR</div>}
+              <div className="flex justify-between items-center" style={{ marginBottom:8 }}>
+                <div style={{ fontWeight:800,fontSize:14,color:p.cor }}>{p.nome}</div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontWeight:800,fontSize:16,color:p.cor }}>{p.preco}</div>
+                  <div style={{ fontSize:9,color:C.t3 }}>/mês</div>
+                </div>
               </div>
               <GoldLine/>
               {p.items.map((it,j)=>(
-                <div key={j} style={{display:"flex",gap:7,alignItems:"center",padding:"2px 0"}}>
-                  <span style={{fontSize:10,color:p.cor,flexShrink:0}}>✓</span>
-                  <span style={{fontSize:11,color:DS.t3}}>{it}</span>
+                <div key={j} className="flex gap-8 items-center" style={{ padding:"2px 0" }}>
+                  <span style={{ color:p.cor,fontSize:10 }}>✓</span>
+                  <span style={{ fontSize:11,color:C.t3 }}>{it}</span>
                 </div>
               ))}
             </div>
           ))}
         </div>
-        <p style={{textAlign:"center",fontSize:9,color:DS.t3,marginTop:8}}>A inscrição é feita na recepção ou pelo administrador da academia.</p>
-      </div>
-      {/* login card */}
-      <div style={{maxWidth:360,margin:"0 auto",background:DS.card,borderRadius:14,border:`1px solid ${DS.border}`,padding:"1.5rem",boxShadow:`0 8px 40px rgba(0,0,0,.7)`}}>
-        <p style={{margin:"0 0 2px",fontWeight:700,fontSize:15,color:DS.t1}}>Entrar na plataforma</p>
-        <GoldLine/>
-        <label style={{fontSize:10,color:DS.t3,fontWeight:500}}>E-mail</label>
-        <input value={email} onChange={e=>{setEmail(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} placeholder="seunome@fitcore.ao" style={{display:"block",width:"100%",marginTop:3,marginBottom:10,padding:"9px 12px",borderRadius:8,border:`1px solid ${erro?DS.err:DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-        <label style={{fontSize:10,color:DS.t3,fontWeight:500}}>Senha</label>
-        <div style={{position:"relative",marginTop:3,marginBottom:10}}>
-          <input value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} type={showS?"text":"password"} placeholder="••••••••" style={{display:"block",width:"100%",padding:"9px 36px 9px 12px",borderRadius:8,border:`1px solid ${erro?DS.err:DS.border}`,background:DS.cardH,color:DS.t1,fontSize:12,boxSizing:"border-box",outline:"none"}}/>
-          <button onClick={()=>setShowS(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,padding:0,color:DS.t3}}>{showS?"🙈":"👁️"}</button>
+
+        {/* Login card */}
+        <div className="login-card">
+          <h3 style={{ marginBottom:4 }}>Entrar na plataforma</h3>
+          <GoldLine/>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11,color:C.t3,fontWeight:600 }}>E-mail</label>
+            <input className={`input${erro?" err":""}`} style={{ marginTop:4 }} value={email} onChange={e=>{setEmail(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} placeholder="seunome@fitcore.ao"/>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11,color:C.t3,fontWeight:600 }}>Senha</label>
+            <div style={{ position:"relative",marginTop:4 }}>
+              <input className={`input${erro?" err":""}`} type={showS?"text":"password"} value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&tentar()} placeholder="••••••••" style={{ paddingRight:40 }}/>
+              <button onClick={()=>setShowS(s=>!s)} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16 }}>{showS?"🙈":"👁️"}</button>
+            </div>
+          </div>
+          {erro && <div className="alert alert-err" style={{ marginBottom:10 }}>⚠️ {erro}</div>}
+          <Btn full variant="gold" onClick={tentar} disabled={loading}>{loading?"A verificar…":"Entrar"}</Btn>
+          <GoldLine/>
+          <div style={{ fontSize:10,color:C.t3,textAlign:"center",letterSpacing:.3,marginBottom:8 }}>ACESSO RÁPIDO — DEMONSTRAÇÃO</div>
+          <div className="stack" style={{ gap:4 }}>
+            {[["admin@fitcore.ao","🏢 Gestor Geral"],["trainer@fitcore.ao","💪 Personal Trainer"],["ana@fitcore.ao","👤 Aluno — Ana Moreira"],["bruno@fitcore.ao","👤 Aluno — Bruno Silva"]].map(([e,l])=>(
+              <button key={e} onClick={()=>demo(e)} style={{ background:email===e?"rgba(201,151,62,.1)":"transparent",border:`1px solid ${email===e?"rgba(201,151,62,.35)":C.border}`,borderRadius:8,padding:"7px 12px",fontSize:11,cursor:"pointer",color:email===e?C.gold:C.t3,textAlign:"left",fontWeight:email===e?600:400,fontFamily:"inherit" }}>
+                {l}<span style={{ opacity:.4,fontSize:9,marginLeft:6 }}>{e}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        {erro&&<div style={{background:DS.err+"18",borderRadius:7,padding:"6px 10px",marginBottom:8,border:`0.5px solid ${DS.err}44`}}><p style={{margin:0,fontSize:11,color:DS.err}}>⚠️ {erro}</p></div>}
-        <Btn full variant="gold" onClick={tentar} disabled={loading}>{loading?"A verificar…":"Entrar"}</Btn>
-        <GoldLine/>
-        <p style={{margin:"0 0 6px",fontSize:9,color:DS.t3,textAlign:"center",letterSpacing:.3}}>ACESSO RÁPIDO — DEMONSTRAÇÃO</p>
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          {[["admin@fitcore.ao","🏢 Gestor"],["trainer@fitcore.ao","💪 Personal Trainer"],["ana@fitcore.ao","👤 Aluno — Ana"],["bruno@fitcore.ao","👤 Aluno — Bruno"]].map(([e,l])=>(
-            <button key={e} onClick={()=>demo(e)} style={{background:email===e?DS.gold+"14":"transparent",border:`0.5px solid ${email===e?DS.gold:DS.border}`,borderRadius:7,padding:"6px 10px",fontSize:11,cursor:"pointer",color:email===e?DS.gold:DS.t3,textAlign:"left",fontWeight:email===e?600:400}}>
-              {l} <span style={{opacity:.4,fontSize:9}}>— {e}</span>
-            </button>
-          ))}
-        </div>
+        <p style={{ textAlign:"center",marginTop:24,fontSize:10,color:C.t3,letterSpacing:.3 }}>FITCORE © 2026 · VERSÃO ENTERPRISE</p>
       </div>
-      <p style={{textAlign:"center",marginTop:"1.5rem",fontSize:9,color:DS.t3,letterSpacing:.3}}>FITCORE © 2026 · VERSÃO ENTERPRISE</p>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════
-// ROOT
+// NAV ITEMS por perfil
 // ═══════════════════════════════════════════════════════
-export default function App(){
-  const [tela,setTela]=useState("login");
-  const [user,setUser]=useState(null);
-  const [credenciais,setCredenciais]=useState(BASE_CREDS);
-  const [unidadeAtual,setUnidadeAtual]=useState(UNIDADES[0]);
-  const [posts,setPosts]=useState(initPosts);
-  const [mensalidades,setMensalidades]=useState(initMensalidades);
-  const [hora,setHora]=useState(now());
-  const [presencas,setPresencas]=useState({});
-  const [notifPerfil,setNotifPerfil]=useState({});
-  useEffect(()=>{const t=setInterval(()=>setHora(now()),1000);return()=>clearInterval(t);},[]);
-  const hoje=new Date().toLocaleDateString("pt-AO");
-  const presencaHoje=user?(presencas[user.email]||[]).includes(hoje):false;
-  const marcarPresenca=()=>{if(!user||presencaHoje)return;setPresencas(p=>({...p,[user.email]:[...(p[user.email]||[]),hoje]}));};
-  const enviarNotifAluno=(email,notif)=>{setNotifPerfil(prev=>({...prev,[email]:[{id:Date.now(),...notif,hora:hhmm(),lida:false},...(prev[email]||[])]}));};
-  if(tela==="login"||!user) return <LoginScreen credenciais={credenciais} onLogin={u=>{setUser(u);setTela("app");}}/>;
-  const perfilLabel={gestor:"Gestor Geral",trainer:"Personal Trainer",aluno:"Membro"}[user.perfil];
-  const perfilCor={gestor:DS.gold,trainer:DS.ok,aluno:DS.goldL}[user.perfil];
-  return(
-    <div style={{fontFamily:"system-ui,-apple-system,sans-serif",color:DS.t1,background:DS.bg0,minHeight:"100vh",padding:"1rem",maxWidth:660,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${DS.border}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <Av nome={user.nome} foto={user.foto} size={34}/>
-          <div>
-            <p style={{margin:0,fontWeight:700,fontSize:13,color:DS.t1}}>{user.nome}</p>
-            <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}><Badge cor={perfilCor}>{perfilLabel}</Badge>{user.codigo&&<span style={{fontSize:8,color:DS.t3,fontFamily:"monospace"}}>{user.codigo}</span>}</div>
+const NAV_GESTOR  = [
+  { id:"dashboard",  icon:"📊", label:"Dashboard"       },
+  { id:"financeiro", icon:"💰", label:"Finanças"         },
+  { id:"comunidade", icon:"👥", label:"Comunidade"       },
+  { id:"inscricao",  icon:"➕", label:"Novo aluno"       },
+];
+const NAV_TRAINER = [
+  { id:"checkin",    icon:"📷", label:"Check-in"        },
+  { id:"personal",   icon:"💪", label:"Personal"        },
+  { id:"comunidade", icon:"👥", label:"Comunidade"      },
+];
+const NAV_ALUNO = [
+  { id:"inicio",     icon:"🏠", label:"Início"          },
+  { id:"checkin",    icon:"📷", label:"Check-in"        },
+  { id:"notifs",     icon:"🔔", label:"Notificações"    },
+  { id:"treino",     icon:"🏋️", label:"Plano de treino" },
+  { id:"agua",       icon:"💧", label:"Hidratação"      },
+  { id:"comunidade", icon:"👥", label:"Comunidade"      },
+];
+
+// ═══════════════════════════════════════════════════════
+// APP ROOT
+// ═══════════════════════════════════════════════════════
+export default function App() {
+  const [tela,         setTela]         = useState("login");
+  const [user,         setUser]         = useState(null);
+  const [credenciais,  setCredenciais]  = useState(BASE_CREDS);
+  const [unidadeAtual, setUnidadeAtual] = useState(UNIDADES[0]);
+  const [posts,        setPosts]        = useState(initPosts);
+  const [mensalidades, setMensalidades] = useState(initMensalidades);
+  const [hora,         setHora]         = useState(nowTime());
+  const [presencas,    setPresencas]    = useState({});
+  const [notifPerfil,  setNotifPerfil]  = useState({});
+  const [aba,          setAba]          = useState("inicio");
+  const [mostrarInsc,  setMostrarInsc]  = useState(false);
+
+  useEffect(() => { const t = setInterval(()=>setHora(nowTime()), 1000); return ()=>clearInterval(t); }, []);
+
+  const hoje       = new Date().toLocaleDateString("pt-AO");
+  const presHoje   = user ? (presencas[user.email]||[]).includes(hoje) : false;
+  const marcarPres = () => { if (!user||presHoje) return; setPresencas(p=>({...p,[user.email]:[...(p[user.email]||[]),hoje]})); };
+  const enviarNotif= (email, notif) => setNotifPerfil(prev=>({...prev,[email]:[{id:Date.now(),...notif,hora:hhmm(),lida:false},...(prev[email]||[])]}));
+  const naoLidas   = user ? (notifPerfil[user.email]||[]).filter(n=>!n.lida).length : 0;
+  const emAtrasoN  = mensalidades.filter(m=>!m.pago&&diasAt(m.vencimento)>0).length;
+
+  const handleLogin = u => { setUser(u); setTela("app"); setAba(u.perfil==="trainer"?"checkin":u.perfil==="gestor"?"dashboard":"inicio"); };
+  const handleLogout= () => { setUser(null); setTela("login"); setMostrarInsc(false); };
+
+  if (tela==="login"||!user) return <LoginScreen credenciais={credenciais} onLogin={handleLogin}/>;
+
+  const navItems = user.perfil==="gestor" ? NAV_GESTOR : user.perfil==="trainer" ? NAV_TRAINER : NAV_ALUNO;
+  const perfilLabel = { gestor:"Gestor Geral", trainer:"Personal Trainer", aluno:"Membro" }[user.perfil];
+  const perfilCor   = { gestor:C.gold, trainer:C.ok, aluno:C.goldL }[user.perfil];
+  const codigo      = user.codigo || `FC-${user.avatar}`;
+
+  const renderContent = () => {
+    if (mostrarInsc) return <Inscricao credenciais={credenciais} setCredenciais={setCredenciais} onLogin={u=>{handleLogin(u);setMostrarInsc(false);}} onVoltar={()=>setMostrarInsc(false)}/>;
+    switch (aba) {
+      case "dashboard":   return <DashboardGestor unidades={UNIDADES} unidadeAtual={unidadeAtual} enviarNotifAluno={enviarNotif}/>;
+      case "financeiro":  return <ModFinanceiro mensalidades={mensalidades} setMensalidades={setMensalidades} enviarNotifAluno={enviarNotif}/>;
+      case "comunidade":  return <PainelComunidade user={user} posts={posts} setPosts={setPosts} unidadeId={user.perfil==="gestor"?unidadeAtual.id:user.unidade}/>;
+      case "inscricao":   return <Inscricao credenciais={credenciais} setCredenciais={setCredenciais} onLogin={u=>{handleLogin(u);}} onVoltar={()=>setAba("dashboard")}/>;
+      case "checkin":     return <CheckinCard user={user} codigo={codigo} presencaHoje={presHoje} onPresenca={marcarPres} isProf={user.perfil==="trainer"}/>;
+      case "personal":    return <PainelPersonal user={user}/>;
+      case "notifs":      return <PainelNotifs notifs={notifPerfil[user.email]||[]} marcarLida={id=>setNotifPerfil(prev=>({...prev,[user.email]:(prev[user.email]||[]).map(n=>n.id===id?{...n,lida:true}:n)}))}/>;
+      case "treino":      return <PlanoDeTreino plano={user.plano}/>;
+      case "agua":        return <PainelAgua user={user} agua={user.aguaHoje||0} setAgua={a=>{}}/>;
+      case "inicio": default: return (
+        <div className="stack">
+          {naoLidas > 0 && (
+            <div onClick={()=>setAba("notifs")} className="flex items-center gap-12" style={{ background:"rgba(214,92,92,.08)",borderRadius:10,padding:"11px 14px",border:`1px solid rgba(214,92,92,.25)`,cursor:"pointer" }}>
+              <div style={{ width:32,height:32,borderRadius:"50%",background:C.err,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",fontWeight:700,flexShrink:0 }}>{naoLidas}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700,fontSize:13,color:C.err }}>{naoLidas} notificação(ões) por ler</div>
+                <div style={{ fontSize:11,color:C.err,opacity:.7 }}>Pode incluir cobranças pendentes.</div>
+              </div>
+              <span style={{ color:C.err }}>›</span>
+            </div>
+          )}
+          <div className="member-card">
+            <div className="flex justify-between items-center" style={{ marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:9,color:C.gold,letterSpacing:2,textTransform:"uppercase",fontWeight:700 }}>FitCore Enterprise</div>
+                <div style={{ fontWeight:800,fontSize:20,color:C.t1,marginTop:4 }}>{user.nome}</div>
+                <div style={{ marginTop:6,display:"flex",gap:6 }}>
+                  <Badge cor={planoCor[user.plano]||C.gold}>{user.plano}</Badge>
+                  <Badge cor={C.ok}>● Activo</Badge>
+                </div>
+              </div>
+              <Av nome={user.nome} foto={user.foto} size={52}/>
+            </div>
+            <GoldLine/>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12 }}>
+              <Chip label="Código membro" valor={codigo}       cor={C.gold}/>
+              <Chip label="Treinos/mês"   valor={user.treinos||0} cor={C.ok}/>
+            </div>
+          </div>
+          <div className="card">
+            <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:10 }}>💧 Hidratação hoje</div>
+            <Bar valor={user.aguaHoje||0} max={aguaPorPlano[user.plano]||3} height={6}/>
+            <div className="flex justify-between" style={{ fontSize:10,color:C.t3,marginTop:4 }}>
+              <span>{(user.aguaHoje||0).toFixed(1)}L</span>
+              <span>Meta: {aguaPorPlano[user.plano]||3}L</span>
+            </div>
+          </div>
+          <div className="card">
+            <div style={{ fontWeight:600,fontSize:12,color:C.t1,marginBottom:10 }}>Actividade recente</div>
+            {[{i:"🏋️",t:"Treino: Peito & Tríceps",h:"Hoje, 07:30"},{i:"💧",t:"Meta de água a 60%",h:"Hoje, 10:00"},{i:"📢",t:"HIIT às 18h com Prof. Mário",h:"Academia"},{i:"🔔",t:"Mensalidade do mês de Agosto",h:"Finanças"}].map((n,i)=>(
+              <div key={i} className="flex items-center gap-10" style={{ padding:"7px 0",borderBottom:i<3?`1px solid ${C.border}`:"none" }}>
+                <span style={{ fontSize:16,width:24,textAlign:"center",flexShrink:0 }}>{n.i}</span>
+                <span style={{ fontSize:12,color:C.t2,flex:1 }}>{n.t}</span>
+                <span style={{ fontSize:10,color:C.t3,flexShrink:0 }}>{n.h}</span>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{textAlign:"right"}}><p style={{margin:0,fontSize:13,fontVariantNumeric:"tabular-nums",fontWeight:600,color:DS.t1}}>{hora}</p><p style={{margin:0,fontSize:9,color:DS.t3,textTransform:"capitalize"}}>{today()}</p></div>
-          <button onClick={()=>{setUser(null);setTela("login");}} style={{background:DS.err+"18",color:DS.err,border:`0.5px solid ${DS.err}44`,borderRadius:7,padding:"4px 9px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Sair</button>
+      );
+    }
+  };
+
+  const pageTitle = { dashboard:"Dashboard", financeiro:"Finanças", comunidade:"Comunidade", inscricao:"Inscrição", checkin:"Check-in QR", personal:"Personal Trainer", notifs:"Notificações", treino:"Plano de Treino", agua:"Hidratação", inicio:"Início" }[aba] || "FitCore";
+
+  return (
+    <div className="shell">
+      {/* ── SIDEBAR ──────────────────────────────────────── */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-logo">🏋️</div>
+          <div>
+            <div className="sidebar-brand-name">FitCore</div>
+            <div className="sidebar-brand-sub">Enterprise</div>
+          </div>
         </div>
-      </div>
-      {user.perfil==="gestor"&&(
-        <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto",paddingBottom:2}}>
-          {UNIDADES.map(u=>(
-            <button key={u.id} onClick={()=>setUnidadeAtual(u)} style={{background:unidadeAtual.id===u.id?DS.gold+"18":"transparent",color:unidadeAtual.id===u.id?DS.gold:DS.t3,border:`1px solid ${unidadeAtual.id===u.id?DS.gold:DS.border}`,borderRadius:20,padding:"4px 11px",fontSize:10,cursor:"pointer",whiteSpace:"nowrap",fontWeight:unidadeAtual.id===u.id?700:400}}>{u.nome.replace("FitCore ","")}</button>
+        <div className="sidebar-user">
+          <Av nome={user.nome} foto={user.foto} size={32}/>
+          <div>
+            <div className="sidebar-user-name">{user.nome}</div>
+            <div className="sidebar-user-role" style={{ color:perfilCor }}>{perfilLabel}</div>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {user.perfil==="gestor" && (
+            <>
+              <div className="nav-section-label">Unidade activa</div>
+              {UNIDADES.map(u => (
+                <button key={u.id} className={`nav-item${unidadeAtual.id===u.id?" active":""}`} onClick={()=>setUnidadeAtual(u)}>
+                  <span className="nav-icon">🏢</span>{u.nome}
+                </button>
+              ))}
+            </>
+          )}
+          <div className="nav-section-label">Menu</div>
+          {navItems.map(item => (
+            <button key={item.id} className={`nav-item${aba===item.id&&!mostrarInsc?" active":""}`} onClick={()=>{setAba(item.id);setMostrarInsc(false);}}>
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+              {item.id==="notifs" && naoLidas > 0 && <span className="nav-badge">{naoLidas}</span>}
+              {item.id==="financeiro" && emAtrasoN > 0 && <span className="nav-badge">{emAtrasoN}</span>}
+            </button>
           ))}
+        </nav>
+        <div className="sidebar-footer">
+          <button onClick={handleLogout} style={{ width:"100%",background:"rgba(214,92,92,.1)",border:"1px solid rgba(214,92,92,.25)",borderRadius:8,padding:"7px 12px",color:C.err,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit" }}>Terminar sessão</button>
         </div>
-      )}
-      {user.perfil==="aluno"
-        ?<PainelAluno user={user} posts={posts} setPosts={setPosts} presencaHoje={presencaHoje} onPresenca={marcarPresenca} notifPerfil={notifPerfil[user?.email]||[]} marcarLida={id=>setNotifPerfil(prev=>({...prev,[user.email]:(prev[user.email]||[]).map(n=>n.id===id?{...n,lida:true}:n)}))}/>
-        :<PainelGestor user={user} unidades={UNIDADES} unidadeAtual={unidadeAtual} setUnidadeAtual={setUnidadeAtual} posts={posts} setPosts={setPosts} credenciais={credenciais} setCredenciais={setCredenciais} onNovoAluno={()=>{}} presencaHoje={presencaHoje} onPresenca={marcarPresenca} mensalidades={mensalidades} setMensalidades={setMensalidades} enviarNotifAluno={enviarNotifAluno}/>
-      }
+      </aside>
+
+      {/* ── MAIN ─────────────────────────────────────────── */}
+      <main className="main">
+        {/* Topbar */}
+        <header className="topbar">
+          <div className="topbar-title">{mostrarInsc?"Nova inscrição":pageTitle}</div>
+          <div style={{ textAlign:"right" }}>
+            <div className="topbar-time">{hora}</div>
+            <div className="topbar-date">{todayStr()}</div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="content">
+          {renderContent()}
+        </div>
+      </main>
     </div>
   );
 }
