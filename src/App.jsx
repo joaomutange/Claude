@@ -320,35 +320,40 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
 
   async function criarAdmin(e) {
     e.preventDefault(); setBusy(true); setNotice(""); setError("");
-    // 1. Criar utilizador via auth (requer service_role — não disponível no cliente)
-    //    Alternativa: criar membro sem conta Auth (nome + email guardados, aguarda registo)
-    //    A opção correcta no cliente é inserir em membros_ginasio com email e aguardar
-    //    que o utilizador se registe. Por ora, criamos o registo de membro com o email.
+
+    const emailNorm = form.email?.trim().toLowerCase();
+
+    // Verificar se já existe convite/membro com este email no ginásio
     const { data: existingUser } = await supabase
       .from("membros_ginasio")
-      .select("id")
+      .select("utilizador_id")
       .eq("ginasio_id", form.ginasio_id)
-      .eq("email", form.email?.trim().toLowerCase())
+      .eq("email_convite", emailNorm)
       .maybeSingle();
 
     if (existingUser) {
-      setError("Já existe um membro com este e-mail neste ginásio.");
+      setError("Já existe um admin com este e-mail neste ginásio.");
       setBusy(false); return;
     }
+
+    // Gerar UUID placeholder — será substituído pelo UUID real quando o utilizador
+    // criar conta com este email (via trigger on_new_member_login ou manualmente)
+    const placeholderUid = crypto.randomUUID();
 
     const { error: err } = await supabase
       .from("membros_ginasio")
       .insert({
-        ginasio_id:  form.ginasio_id,
-        nome:        form.nome_admin?.trim(),
-        email:       form.email?.trim().toLowerCase(),
-        funcao:      "admin",
-        ativo:       true,
-        // utilizador_id será preenchido quando o utilizador fizer o primeiro login
+        utilizador_id: placeholderUid,   // placeholder; actualizado no primeiro login
+        ginasio_id:    form.ginasio_id,
+        nome:          form.nome_admin?.trim(),
+        email_convite: emailNorm,        // usado para matching no login
+        funcao:        "admin",
+        ativo:         false,            // inactivo até o utilizador criar conta
+        conta_pendente: true,
       });
 
     if (err) { setError("Erro ao criar admin: " + err.message); setBusy(false); return; }
-    setNotice(`Admin "${form.nome_admin}" registado. Deverá criar conta com o e-mail "${form.email}".`);
+    setNotice(`Convite criado para "${form.nome_admin}" (${emailNorm}). A conta ficará activa após o primeiro login.`);
     setModal(null); setForm({});
     setBusy(false);
   }
