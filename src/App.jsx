@@ -624,8 +624,22 @@ export default function App() {
       if (saResult.error) {
         console.warn("[FitCore] Erro ao verificar superadmin:", saResult.error.message, saResult.error.code);
       }
-      if (saResult.data) {
-        setSuperadmin(saResult.data);
+      // Verificar por dados ou por email como fallback
+      const isSA = !!saResult.data || (!saResult.error && user.email === saResult.data?.email)
+        || (saResult.data === null && !saResult.error && false); // placeholder
+      const saData = saResult.data || (user.email ? { nome: user.email.split("@")[0], email: user.email, utilizador_id: user.id, ativo: true } : null);
+
+      // Tentar via email se a query por id não retornou nada
+      let resolvedSA = saResult.data;
+      if (!resolvedSA && !saResult.error) {
+        // Pode ser que o utilizador_id não coincida — tentar por email
+        const { data: saByEmail } = await supabase
+          .from("superadmins").select("*").eq("email", user.email).eq("ativo", true).maybeSingle();
+        if (saByEmail) resolvedSA = saByEmail;
+      }
+
+      if (resolvedSA) {
+        setSuperadmin(resolvedSA);
         setIsSuperadmin(true);
         setDataLoading(false);
         return; // superadmin não precisa de ginásio
