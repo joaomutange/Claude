@@ -321,39 +321,23 @@ function SuperadminPanel({ user, superadmin, onLogout }) {
   async function criarAdmin(e) {
     e.preventDefault(); setBusy(true); setNotice(""); setError("");
 
-    const emailNorm = form.email?.trim().toLowerCase();
+    // Chamar Edge Function que usa service_role para:
+    // 1. Enviar email de convite via auth.admin.inviteUserByEmail
+    // 2. Criar registo em membros_ginasio com utilizador_id real
+    const { data, error: err } = await supabase.functions.invoke("convidar-admin", {
+      body: {
+        ginasio_id: form.ginasio_id,
+        nome_admin: form.nome_admin?.trim(),
+        email:      form.email?.trim().toLowerCase(),
+      },
+    });
 
-    // Verificar se já existe convite/membro com este email no ginásio
-    const { data: existingUser } = await supabase
-      .from("membros_ginasio")
-      .select("utilizador_id")
-      .eq("ginasio_id", form.ginasio_id)
-      .eq("email_convite", emailNorm)
-      .maybeSingle();
-
-    if (existingUser) {
-      setError("Já existe um admin com este e-mail neste ginásio.");
+    if (err || data?.error) {
+      setError("Erro ao criar admin: " + (data?.error ?? err?.message));
       setBusy(false); return;
     }
 
-    // Gerar UUID placeholder — será substituído pelo UUID real quando o utilizador
-    // criar conta com este email (via trigger on_new_member_login ou manualmente)
-    const placeholderUid = crypto.randomUUID();
-
-    const { error: err } = await supabase
-      .from("membros_ginasio")
-      .insert({
-        utilizador_id: placeholderUid,   // placeholder; actualizado no primeiro login
-        ginasio_id:    form.ginasio_id,
-        nome:          form.nome_admin?.trim(),
-        email_convite: emailNorm,        // usado para matching no login
-        funcao:        "admin",
-        ativo:         false,            // inactivo até o utilizador criar conta
-        conta_pendente: true,
-      });
-
-    if (err) { setError("Erro ao criar admin: " + err.message); setBusy(false); return; }
-    setNotice(`Convite criado para "${form.nome_admin}" (${emailNorm}). A conta ficará activa após o primeiro login.`);
+    setNotice(data?.message ?? `Convite enviado para "${form.email}".`);
     setModal(null); setForm({});
     setBusy(false);
   }
