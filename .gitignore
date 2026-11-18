@@ -52,3 +52,4 @@ coverage/
 *.tar.gz
 download/
 supabase/.temp/
+

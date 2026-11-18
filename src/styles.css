@@ -1255,3 +1255,4 @@ label textarea { resize: vertical; min-height: 70px; }
   .metrics { grid-template-columns: 1fr; }
   .login-motivos { grid-template-columns: 1fr; }
 }
+

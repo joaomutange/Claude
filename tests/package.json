@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "sql": "node sql.cjs",
+    "backend": "node compile-edge.cjs && node backend.mjs",
+    "ui": "node ui.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "esbuild": "0.25.12",
+    "playwright": "1.62.1"
+  }
+}

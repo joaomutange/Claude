@@ -1,138 +1,57 @@
-// Edge Function: convidar-admin
-// Recebe: { ginasio_id, nome_admin, email }
-// Usa service_role para:
-//   1. Enviar convite por email via auth.admin.inviteUserByEmail
-//   2. Criar/actualizar registo em membros_ginasio com utilizador_id real
-// Requer variáveis de ambiente (definidas automaticamente no Supabase):
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+import { adminClient, environment, preflight, response, body, token, hash, escape, uuid } from '../_shared/platform.ts';
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-Deno.serve(async (req: Request) => {
-  // Preflight CORS
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+export async function handler(req: Request): Promise<Response> {
   try {
-    // ── 1. Validar que o pedido vem de um utilizador autenticado ──────────
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return json({ error: "Não autenticado." }, 401);
+    const early = preflight(req); if (early) return early;
+    const client = adminClient();
+    const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
+    if (!bearer) return response(req, 401, { error: 'Inicie sessão novamente.' });
+    const { data: identity, error: identityError } = await client.auth.getUser(bearer);
+    if (identityError || !identity.user) return response(req, 401, { error: 'Sessão inválida.' });
+    // Decode only the SAME JWT just validated by the Auth server.
+    let aal = 'aal1';
+    try { aal = JSON.parse(atob(bearer.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).aal || 'aal1'; } catch {}
+    const input = await body(req);
+    if (!uuid(input.ginasio_id) || typeof input.nome_admin !== 'string' || input.nome_admin.trim().length < 1 || input.nome_admin.length > 120 || typeof input.email !== 'string' || input.email.length > 254) {
+      return response(req, 400, { error: 'Verifique o ginásio, o nome e o e-mail.' });
     }
-
-    // Cliente com a chave do utilizador (para verificar se é superadmin)
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    // Verificar que o utilizador é superadmin
-    const { data: isSA, error: saErr } = await supabaseUser.rpc("is_superadmin");
-    if (saErr || !isSA) {
-      return json({ error: "Acesso negado. Apenas superadmins podem convidar administradores." }, 403);
+    const email = input.email.trim().toLowerCase();
+    const data = { ginasio_id: input.ginasio_id, nome_admin: input.nome_admin.trim(), email };
+    async function call(action: string, extra = {}) {
+      return client.rpc('fitcore_convite_backend', { p_actor: identity.user!.id, p_aal: aal, p_acao: action, p_dados: { ...data, ...extra } });
     }
-
-    // ── 2. Ler e validar o body ───────────────────────────────────────────
-    const body = await req.json();
-    const { ginasio_id, nome_admin, email } = body ?? {};
-
-    if (!ginasio_id || !nome_admin || !email) {
-      return json({ error: "Campos obrigatórios em falta: ginasio_id, nome_admin, email." }, 400);
+    const key = Deno.env.get('RESEND_API_KEY'), from = Deno.env.get('INVITE_FROM');
+    const env = environment();
+    if (!key || !from || !env.terms || !env.version || new URL(env.terms).protocol !== 'https:') return response(req, 503, { error: 'Configure o envio de e-mails e os termos antes de enviar convites.' });
+    const reservation = await call('reservar');
+    if (reservation.error) return response(req, reservation.error.code === '42501' ? 403 : 409, { error: reservation.error.message });
+    let userId = reservation.data.utilizador_id;
+    if (!userId) {
+      const created = await client.auth.admin.createUser({ email, password: 'Aa1!' + token(), email_confirm: false,
+        user_metadata: { nome: data.nome_admin, fitcore_platform_request: reservation.data.request_id } });
+      if (created.error || !created.data.user) return response(req, 409, { error: 'Não foi possível criar a conta. Uma conta existente exige associação autorizada. Pode repetir para retomar um cadastro interrompido.' });
+      userId = created.data.user.id;
     }
-
-    const emailNorm = String(email).trim().toLowerCase();
-
-    // ── 3. Cliente com service_role (ignora RLS, pode criar utilizadores) ─
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    // ── 4. Verificar se já existe membro com este email neste ginásio ─────
-    const { data: existing } = await supabaseAdmin
-      .from("membros_ginasio")
-      .select("utilizador_id, conta_pendente")
-      .eq("ginasio_id", ginasio_id)
-      .eq("email_convite", emailNorm)
-      .maybeSingle();
-
-    if (existing && !existing.conta_pendente) {
-      return json({ error: "Já existe um administrador activo com este e-mail neste ginásio." }, 409);
-    }
-
-    // ── 5. Verificar se o utilizador já existe em auth.users ─────────────
-    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingAuthUser = authUsers?.users?.find(u => u.email === emailNorm);
-
-    let utilizadorId: string;
-
-    if (existingAuthUser) {
-      // Utilizador já tem conta — associar directamente
-      utilizadorId = existingAuthUser.id;
-    } else {
-      // Enviar convite por email — Supabase cria o utilizador e envia o link
-      const { data: invited, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        emailNorm,
-        {
-          data: { nome: String(nome_admin).trim() }, // guardado em raw_user_meta_data
-          redirectTo: `${Deno.env.get("SITE_URL") ?? "https://fitcore.ao"}/login`,
-        }
-      );
-      if (inviteErr) {
-        return json({ error: "Erro ao enviar convite: " + inviteErr.message }, 500);
-      }
-      utilizadorId = invited.user!.id;
-    }
-
-    // ── 6. Criar ou actualizar registo em membros_ginasio ─────────────────
-    if (existing) {
-      // Já existe registo pendente — actualizar com o utilizador_id real
-      await supabaseAdmin
-        .from("membros_ginasio")
-        .update({
-          utilizador_id:  utilizadorId,
-          nome:           String(nome_admin).trim(),
-          ativo:          !!existingAuthUser, // ativo imediatamente se já tem conta
-          conta_pendente: !existingAuthUser,
-        })
-        .eq("ginasio_id", ginasio_id)
-        .eq("email_convite", emailNorm);
-    } else {
-      await supabaseAdmin
-        .from("membros_ginasio")
-        .insert({
-          utilizador_id:  utilizadorId,
-          ginasio_id,
-          nome:           String(nome_admin).trim(),
-          email_convite:  emailNorm,
-          funcao:         "admin",
-          ativo:          !!existingAuthUser,
-          conta_pendente: !existingAuthUser,
-        });
-    }
-
-    const mensagem = existingAuthUser
-      ? `Utilizador existente associado como admin do ginásio.`
-      : `Convite enviado para ${emailNorm}. O acesso será activado após o primeiro login.`;
-
-    return json({ ok: true, message: mensagem, utilizador_id: utilizadorId });
-
-  } catch (err) {
-    console.error("[convidar-admin]", err);
-    return json({ error: "Erro interno: " + (err as Error).message }, 500);
-  }
-});
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+    const rawToken = token();
+    const prepared = await call('preparar', { utilizador_id: userId, token_hash: await hash(rawToken) });
+    if (prepared.error) return response(req, 409, { error: prepared.error.message });
+    const inviteId = prepared.data.convite_id;
+    const link = env.origin + '/primeiro-acesso#token=' + rawToken;
+    let sent = false;
+    try {
+      const result = await fetch('https://api.resend.com/emails', { method: 'POST', signal: AbortSignal.timeout(15000), headers: {
+        Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'Idempotency-Key': 'fitcore-gestor-' + inviteId,
+      }, body: JSON.stringify({ from, to: [email], subject: 'O seu acesso a ' + prepared.data.nome_ginasio,
+        html: '<h1>Bem-vindo ao FitCore</h1><p>Olá, ' + escape(data.nome_admin) + '.</p><p>Foi convidado para gerir ' + escape(prepared.data.nome_ginasio) + '.</p><p><a href="' + escape(link) + '">Definir palavra-passe e ativar acesso</a></p><p>O convite expira em 24 horas e só pode ser utilizado uma vez. Se não esperava este convite, ignore-o.</p>',
+        text: 'Ative o seu acesso de gestor: ' + link + '\nVálido por 24 horas, uma única utilização.',
+      }) });
+      sent = result.ok;
+    } catch {}
+    const recorded = await call(sent ? 'enviado' : 'falhou', { convite_id: inviteId });
+    if (recorded.error || !sent) return response(req, 200, { ok: true, invitationSent: false,
+      message: 'Gestor cadastrado. O envio do convite não foi confirmado. Verifique o serviço de e-mail e reenvie pela lista de gestores.' });
+    return response(req, 200, { ok: true, invitationSent: true, message: 'Gestor cadastrado com sucesso. Convite de acesso enviado.' });
+  } catch { return response(req, 500, { error: 'Não foi possível concluir o convite. Verifique a configuração e tente novamente.' }); }
 }
+Deno.serve(handler);
+

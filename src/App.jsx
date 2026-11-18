@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import Dashboard from "./Dashboard";
+import SuperadminPanel from "./SuperadminPanel";
+import FirstAccess from "./FirstAccess";
 import "./styles.css";
 
 // ═══════════════════════════════════════════════════════
@@ -279,292 +281,10 @@ function SemAcesso({ onLogout }) {
 // ═══════════════════════════════════════════════════════
 // SUPERADMIN PANEL
 // ═══════════════════════════════════════════════════════
-function SuperadminPanel({ user, superadmin, onLogout }) {
-  const [gyms,      setGyms]      = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [notice,    setNotice]    = useState("");
-  const [error,     setError]     = useState("");
-  const [modal,     setModal]     = useState(null); // 'gym' | 'admin'
-  const [form,      setForm]      = useState({});
-  const [busy,      setBusy]      = useState(false);
-
-  useEffect(() => { fetchGyms(); }, []);
-
-  async function fetchGyms() {
-    setLoading(true); setError("");
-    const { data, error: err } = await supabase
-      .from("ginasios")
-      .select("*")
-      .order("criado_em", { ascending: false });
-    if (err) { setError("Erro ao carregar ginásios: " + err.message); }
-    else { setGyms(data || []); }
-    setLoading(false);
-  }
-
-  async function criarGinasio(e) {
-    e.preventDefault(); setBusy(true); setNotice(""); setError("");
-    const slug = form.nome?.trim().toLowerCase()
-      .normalize("NFD").replace(/[̀-ͯ]/g,"")
-      .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-    const { data, error: err } = await supabase
-      .from("ginasios")
-      .insert({ nome: form.nome?.trim(), slug, morada: form.morada?.trim()||null, telefone: form.telefone?.trim()||null })
-      .select("id,nome")
-      .single();
-    if (err) { setError("Erro ao criar ginásio: " + err.message); setBusy(false); return; }
-    setNotice(`Ginásio "${data.nome}" criado com sucesso.`);
-    setModal(null); setForm({});
-    fetchGyms();
-    setBusy(false);
-  }
-
-  async function criarAdmin(e) {
-    e.preventDefault(); setBusy(true); setNotice(""); setError("");
-
-    // Chamar Edge Function que usa service_role para:
-    // 1. Enviar email de convite via auth.admin.inviteUserByEmail
-    // 2. Criar registo em membros_ginasio com utilizador_id real
-    const { data, error: err } = await supabase.functions.invoke("convidar-admin", {
-      body: {
-        ginasio_id: form.ginasio_id,
-        nome_admin: form.nome_admin?.trim(),
-        email:      form.email?.trim().toLowerCase(),
-      },
-    });
-
-    if (err || data?.error) {
-      setError("Erro ao criar admin: " + (data?.error ?? err?.message));
-      setBusy(false); return;
-    }
-
-    setNotice(data?.message ?? `Convite enviado para "${form.email}".`);
-    setModal(null); setForm({});
-    setBusy(false);
-  }
-
-  const initial = n => n?.split(' ').filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase() || 'SA';
-
-  return (
-    <div className="workspace">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <a className="wordmark" href="#" onClick={e=>e.preventDefault()}>
-          <span className="brand-symbol">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 8v8 M6 5v14 M18 5v14 M21 8v8 M6 12h12"/>
-            </svg>
-          </span>
-          fitcore<span className="wordmark-dot">.</span>
-        </a>
-        <small className="nav-label">PLATAFORMA</small>
-        <nav>
-          <button className="active" aria-current="page">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>
-            Ginásios
-            <span className="nav-dot"/>
-          </button>
-        </nav>
-        <div className="sidebar-note"><span className="live-dot"/><span>Painel Superadmin.<br/><small>Gestão global da plataforma.</small></span></div>
-        <div className="account">
-          <span className="avatar">{initial(superadmin?.nome)}</span>
-          <div>
-            <strong>{superadmin?.nome || user.email}</strong>
-            <small>Superadmin</small>
-          </div>
-          <button type="button" onClick={onLogout} aria-label="Sair da conta">Terminar sessão</button>
-        </div>
-      </aside>
-
-      {/* Body */}
-      <div className="workspace-body">
-        <header className="topbar">
-          <span>FitCore <b>/</b> Painel de Administração Global</span>
-          <div>
-            <span className="topbar-status"><i/> Superadmin</span>
-            <span className="avatar small">{initial(superadmin?.nome)}</span>
-            <button className="icon-button mobile-logout" onClick={onLogout} aria-label="Sair da conta">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4H4v16h5 M10 12h11 M17 8l4 4-4 4"/></svg>
-            </button>
-          </div>
-        </header>
-
-        <div className="content">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">FITCORE / SUPERADMIN</div>
-              <h1>Gestão global da plataforma.</h1>
-              <p>Todos os ginásios registados, num só lugar.</p>
-            </div>
-            <button className="icon-button" onClick={fetchGyms} disabled={loading} aria-label="Atualizar dados">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5 M4 17v-5h5 M6 6a8 8 0 0 1 14 6 M18 18A8 8 0 0 1 4 12"/></svg>
-            </button>
-          </div>
-
-          {error && <div className="alert" role="alert">{error}</div>}
-          {notice && (
-            <div className="notice" role="status">
-              {notice}
-              <button onClick={()=>setNotice("")} aria-label="Fechar aviso">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12 M6 18L18 6"/></svg>
-              </button>
-            </div>
-          )}
-
-          {/* Métricas */}
-          <section className="metrics">
-            <article className="metric">
-              <div className="metric-top"><span>Ginásios registados</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>
-              </div>
-              <strong>{gyms.length}</strong>
-              <small>Total de espaços na plataforma</small>
-            </article>
-            <article className="metric">
-              <div className="metric-top"><span>Ginásios activos</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4 4L19 6"/></svg>
-              </div>
-              <strong>{gyms.filter(g=>g.ativo).length}</strong>
-              <small>Com subscrição activa</small>
-            </article>
-          </section>
-
-          {/* Acções rápidas */}
-          <div style={{ display:"flex",gap:12,marginBottom:24,flexWrap:"wrap" }}>
-            <button className="primary" onClick={()=>{setModal("gym");setForm({});}}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14 M5 12h14"/></svg>
-              Novo ginásio
-            </button>
-            {gyms.length > 0 && (
-              <button className="primary" style={{ background:"rgba(201,151,62,.15)",color:"#C9973E",border:"1px solid rgba(201,151,62,.3)" }} onClick={()=>{setModal("admin");setForm({ginasio_id:gyms[0].id});}}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0"/></svg>
-                Registar admin de ginásio
-              </button>
-            )}
-          </div>
-
-          {/* Lista de ginásios */}
-          <section className="panel">
-            <div className="panel-heading">
-              <div><h2>Todos os ginásios</h2><p>{gyms.length} espaços registados na plataforma</p></div>
-            </div>
-            {loading ? (
-              <div className="loading-state" role="status"><span className="spinner"/>A carregar ginásios…</div>
-            ) : gyms.length === 0 ? (
-              <div className="empty">
-                <span className="empty-icon">🏟️</span>
-                <h3>Nenhum ginásio registado</h3>
-                <p>Crie o primeiro ginásio da plataforma.</p>
-                <button className="primary" onClick={()=>{setModal("gym");setForm({});}}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14 M5 12h14"/></svg>
-                  Criar ginásio
-                </button>
-              </div>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead><tr><th>Nome</th><th>Slug</th><th>Morada</th><th>Telefone</th><th>Criado em</th></tr></thead>
-                  <tbody>
-                    {gyms.map(g => (
-                      <tr key={g.id}>
-                        <td><strong>{g.nome}</strong></td>
-                        <td><code style={{fontSize:11,color:C.t3}}>{g.slug}</code></td>
-                        <td>{g.morada||"—"}</td>
-                        <td>{g.telefone||"—"}</td>
-                        <td>{g.criado_em ? new Date(g.criado_em).toLocaleDateString("pt-AO") : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <footer className="workspace-footer">
-          <span>fitcore<span>.</span> <small>Painel de administração global.</small></span>
-          <small>Superadmin · {user.email}</small>
-        </footer>
-      </div>
-
-      {/* Modal: Novo ginásio */}
-      {modal === "gym" && (
-        <div className="modal-backdrop">
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div className="modal-heading">
-              <div><span className="eyebrow">PLATAFORMA / NOVO ESPAÇO</span><h2 id="modal-title">Criar ginásio</h2></div>
-              <button className="icon-button" disabled={busy} onClick={()=>setModal(null)} aria-label="Fechar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12 M6 18L18 6"/></svg>
-              </button>
-            </div>
-            <form onSubmit={criarGinasio}>
-              <div className="form-grid">
-                <label className="full">Nome do ginásio<span className="required"> *</span>
-                  <input className="input" required maxLength={120} value={form.nome||""} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Ex.: FitCore Luanda"/>
-                </label>
-                <label>Morada
-                  <input className="input" maxLength={200} value={form.morada||""} onChange={e=>setForm(f=>({...f,morada:e.target.value}))} placeholder="Rua, cidade"/>
-                </label>
-                <label>Telefone
-                  <input className="input" maxLength={30} value={form.telefone||""} onChange={e=>setForm(f=>({...f,telefone:e.target.value}))} placeholder="+244 …"/>
-                </label>
-              </div>
-              <div className="modal-actions">
-                <button type="button" disabled={busy} onClick={()=>setModal(null)}>Cancelar</button>
-                <button className="primary" disabled={busy}>{busy?"A criar…":"Criar ginásio"}
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4 4L19 6"/></svg>
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {/* Modal: Registar admin */}
-      {modal === "admin" && (
-        <div className="modal-backdrop">
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-admin">
-            <div className="modal-heading">
-              <div><span className="eyebrow">PLATAFORMA / NOVO ADMIN</span><h2 id="modal-title-admin">Registar administrador de ginásio</h2></div>
-              <button className="icon-button" disabled={busy} onClick={()=>setModal(null)} aria-label="Fechar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12 M6 18L18 6"/></svg>
-              </button>
-            </div>
-            <form onSubmit={criarAdmin}>
-              <div className="form-grid">
-                <label className="full">Ginásio<span className="required"> *</span>
-                  <select className="input" required value={form.ginasio_id||""} onChange={e=>setForm(f=>({...f,ginasio_id:e.target.value}))}>
-                    <option value="">Selecionar ginásio…</option>
-                    {gyms.map(g=><option key={g.id} value={g.id}>{g.nome}</option>)}
-                  </select>
-                </label>
-                <label>Nome do admin<span className="required"> *</span>
-                  <input className="input" required maxLength={120} value={form.nome_admin||""} onChange={e=>setForm(f=>({...f,nome_admin:e.target.value}))} placeholder="Nome completo"/>
-                </label>
-                <label>E-mail<span className="required"> *</span>
-                  <input className="input" required type="email" maxLength={254} value={form.email||""} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="admin@ginasio.ao"/>
-                </label>
-              </div>
-              <p style={{fontSize:11,color:C.t3,margin:"8px 0 0",lineHeight:1.5}}>
-                ⚠️ O administrador deverá criar a conta na plataforma com este e-mail. O vínculo será activado automaticamente.
-              </p>
-              <div className="modal-actions">
-                <button type="button" disabled={busy} onClick={()=>setModal(null)}>Cancelar</button>
-                <button className="primary" disabled={busy}>{busy?"A registar…":"Registar admin"}
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4 4L19 6"/></svg>
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════
 // APP ROOT — Autenticação Supabase
 // ═══════════════════════════════════════════════════════
-export default function App() {
+function AuthenticatedApp() {
   const [session,      setSession]      = useState(undefined); // undefined = ainda a carregar
   const [superadmin,   setSuperadmin]   = useState(null);      // dados da tabela superadmins
   const [isSuperadmin, setIsSuperadmin] = useState(false);
@@ -593,20 +313,13 @@ export default function App() {
       return;
     }
     loadUserData(session.user);
-  }, [session]);
+  }, [session?.user?.id]);
 
   async function loadUserData(user) {
     setDataLoading(true); setAuthError("");
     try {
-      // Lista de emails superadmin (fallback imediato enquanto RLS é depurada)
-      const SUPERADMIN_EMAILS = ["joaomutange@gmail.com"];
-      if (SUPERADMIN_EMAILS.includes(user.email)) {
-        setSuperadmin({ nome: "Miguel Mutange", email: user.email, utilizador_id: user.id, ativo: true });
-        setIsSuperadmin(true);
-        setDataLoading(false);
-        return;
-      }
-
+      setIsSuperadmin(false);
+      setSuperadmin(null);
       // Verificar superadmin via função RPC (SECURITY DEFINER, ignora RLS)
       const [saFnResult, memberResult] = await Promise.all([
         supabase.rpc("is_superadmin"),
@@ -619,7 +332,7 @@ export default function App() {
 
       if (saFnResult.data === true) {
         const { data: saData } = await supabase
-          .from("superadmins").select("*").eq("email", user.email).maybeSingle();
+          .from("superadmins").select("*").eq("utilizador_id", user.id).maybeSingle();
         setSuperadmin(saData || { nome: user.email, email: user.email, utilizador_id: user.id, ativo: true });
         setIsSuperadmin(true);
         setDataLoading(false);
@@ -645,6 +358,24 @@ export default function App() {
     setDataLoading(false);
   }
 
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    let alive = true;
+    async function check() {
+      if (document.visibilityState === 'hidden') return;
+      const result = await supabase.rpc('is_superadmin');
+      if (!alive) return;
+      if (isSuperadmin && result.data !== true) { setIsSuperadmin(false); setSuperadmin(null); setGym(null); setMembership(null); }
+      if (!isSuperadmin && gym?.id) {
+        const access = await supabase.from('membros_ginasio').select('ativo').eq('utilizador_id',session.user.id).eq('ginasio_id',gym.id).eq('ativo',true).maybeSingle();
+        if (alive && !access.data) { setGym(null); setMembership(null); }
+      }
+    }
+    const timer = setInterval(check,30000);
+    document.addEventListener('visibilitychange',check);
+    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange',check); };
+  },[session?.user?.id,isSuperadmin,gym?.id]);
+
   // Quando muda de ginásio seleccionado
   const handleSelectGym = (gymId) => {
     const g = gyms.find(x => x.id === gymId);
@@ -666,7 +397,8 @@ export default function App() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) { alert("Não foi possível terminar a sessão. Tente novamente."); return; }
     setSuperadmin(null); setIsSuperadmin(false);
     // onAuthStateChange limpa a sessão automaticamente
   };
@@ -703,3 +435,6 @@ export default function App() {
     />
   );
 }
+
+
+export default function App(){return location.pathname==='/primeiro-acesso'?<FirstAccess/>:<AuthenticatedApp/>;}

@@ -1,0 +1,5 @@
+[functions.convidar-admin]
+verify_jwt = false
+
+[functions.ativar-gestor]
+verify_jwt = false
